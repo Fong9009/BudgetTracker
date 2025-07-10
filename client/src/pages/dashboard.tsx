@@ -7,8 +7,8 @@ import { AddTransactionModal } from "@/components/modals/add-transaction-modal";
 import { AddAccountModal } from "@/components/modals/add-account-modal";
 import { ExportModal } from "@/components/export/export-modal";
 import { formatCurrency, formatDate, getAccountTypeIcon, getAccountTypeColor, getTransactionTypeColor } from "@/lib/utils";
-import { Plus, Download } from "lucide-react";
-import type { Account, TransactionWithDetails } from "@shared/schema";
+import { Plus, Download, ArrowRightLeft } from "lucide-react";
+import type { Transaction, TransactionWithDetails, Account } from "@shared/schema";
 
 interface AnalyticsSummary {
   totalBalance: string;
@@ -39,12 +39,18 @@ export default function Dashboard() {
     queryKey: ["/api/transactions"],
   });
 
-  const { data: analytics } = useQuery<AnalyticsSummary>({
+  const { data: analytics, isLoading: analyticsLoading } = useQuery<AnalyticsSummary>({
     queryKey: ["/api/analytics/summary"],
   });
 
-  const { data: categorySpending = [] } = useQuery<CategorySpending[]>({
+  const { data: categorySpending = [], isLoading: categoriesLoading } = useQuery<CategorySpending[]>({
     queryKey: ["/api/analytics/category-spending"],
+  });
+
+  const filteredCategorySpending = categorySpending.filter(c => c.name !== 'Transfer');
+  
+  const { data: recentTransfers = [], isLoading: transfersLoading } = useQuery<(Transaction & { accountId: Account })[]>({
+    queryKey: ["/api/transfers/recent"],
   });
 
   const recentTransactions = transactions.slice(0, 4);
@@ -192,6 +198,61 @@ export default function Dashboard() {
               </CardContent>
             </Card>
 
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Transfers</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {transfersLoading ? (
+                  <div className="space-y-4">
+                    {[...Array(3)].map((_, i) => (
+                      <div key={i} className="animate-pulse flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                        <div className="flex items-center space-x-4">
+                          <div className="w-10 h-10 bg-muted rounded-full" />
+                          <div className="space-y-2">
+                            <div className="h-4 bg-muted rounded w-32" />
+                            <div className="h-3 bg-muted rounded w-24" />
+                          </div>
+                        </div>
+                        <div className="h-4 bg-muted rounded w-20" />
+                      </div>
+                    ))}
+                  </div>
+                ) : recentTransfers.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">No recent transfers.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-0 divide-y divide-border">
+                    {recentTransfers.map((transfer) => (
+                      <div key={transfer._id} className="transaction-item">
+                        <div className="flex items-center">
+                          <div className="flex-shrink-0">
+                            <div className="transaction-icon bg-primary/80 text-primary-foreground">
+                              <ArrowRightLeft className="h-5 w-5" />
+                            </div>
+                          </div>
+                          <div className="ml-4">
+                            <p className="text-sm font-medium text-foreground">
+                              {transfer.description}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {new Date(transfer.date).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-medium text-foreground">
+                            -{formatCurrency(transfer.amount.toString())}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             {/* Accounts Overview */}
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
@@ -273,7 +334,7 @@ export default function Dashboard() {
           </div>
 
           {/* Category Spending */}
-          {categorySpending.length > 0 && (
+          {filteredCategorySpending.length > 0 && (
             <div className="mt-8">
               <Card>
                 <CardHeader>
@@ -281,8 +342,8 @@ export default function Dashboard() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {categorySpending.map((category) => {
-                      const totalSpending = categorySpending.reduce((sum, cat) => sum + parseFloat(cat.amount), 0);
+                    {filteredCategorySpending.map((category) => {
+                      const totalSpending = filteredCategorySpending.reduce((sum, cat) => sum + parseFloat(cat.amount), 0);
                       const percentage = totalSpending > 0 ? (parseFloat(category.amount) / totalSpending) * 100 : 0;
                       
                       return (

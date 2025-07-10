@@ -10,6 +10,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -41,6 +43,7 @@ export default function Transactions() {
   const [selectedAccount, setSelectedAccount] = useState<string>("all");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedType, setSelectedType] = useState<string>("all");
+  const [selectedTransactionKind, setSelectedTransactionKind] = useState<string>("all");
   const [deleteTransaction, setDeleteTransaction] = useState<string | null>(null);
   
   // Advanced filtering states
@@ -67,9 +70,11 @@ export default function Transactions() {
     queryKey: ["/api/categories"],
   });
 
+  const filteredCategoriesForDropdown = categories.filter(c => c.name !== 'Transfer');
+
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      await apiRequest("DELETE", `/api/transactions/${id}`);
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/transactions/${id.toString()}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/transactions"] });
@@ -109,6 +114,12 @@ export default function Transactions() {
       // Filter by type
       const matchesType = selectedType === "all" || transaction.type === selectedType;
       
+      // Filter by transaction kind
+      const isTransfer = transaction.description.startsWith("Transfer to");
+      const matchesKind = selectedTransactionKind === "all" ||
+        (selectedTransactionKind === "transfer" && isTransfer) ||
+        (selectedTransactionKind === "transaction" && !isTransfer);
+
       // Filter by date range
       const transactionDate = new Date(transaction.date);
       const matchesDateFrom = !dateFrom || transactionDate >= dateFrom;
@@ -120,7 +131,7 @@ export default function Transactions() {
       const matchesAmountMax = !amountMax || amount <= parseFloat(amountMax);
 
       return matchesSearch && matchesAccount && matchesCategory && matchesType && 
-             matchesDateFrom && matchesDateTo && matchesAmountMin && matchesAmountMax;
+             matchesKind && matchesDateFrom && matchesDateTo && matchesAmountMin && matchesAmountMax;
     });
 
     // Sort transactions
@@ -152,7 +163,7 @@ export default function Transactions() {
 
     return filtered;
   }, [transactions, searchTerm, selectedAccount, selectedCategory, selectedType, 
-      dateFrom, dateTo, amountMin, amountMax, sortBy, sortOrder]);
+      selectedTransactionKind, dateFrom, dateTo, amountMin, amountMax, sortBy, sortOrder]);
 
   // Debounced search handler
   const handleSearchChange = debounce((value: string) => {
@@ -165,6 +176,7 @@ export default function Transactions() {
     setSelectedAccount("all");
     setSelectedCategory("all");
     setSelectedType("all");
+    setSelectedTransactionKind("all");
     setDateFrom(undefined);
     setDateTo(undefined);
     setAmountMin("");
@@ -175,9 +187,9 @@ export default function Transactions() {
 
   // Check if any filters are active
   const hasActiveFilters = searchTerm || selectedAccount !== "all" || selectedCategory !== "all" || 
-    selectedType !== "all" || dateFrom || dateTo || amountMin || amountMax;
+    selectedType !== "all" || selectedTransactionKind !== "all" || dateFrom || dateTo || amountMin || amountMax;
 
-  const handleDelete = (id: string) => {
+  const handleDelete = (id: number) => {
     deleteMutation.mutate(id);
   };
 
@@ -257,16 +269,13 @@ export default function Transactions() {
               </div>
             </CardHeader>
             <CardContent>
-              {/* Basic Filters */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                {/* Search */}
-                <div className="relative col-span-1 md:col-span-2 lg:col-span-1">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {/* Search Input */}
+                <div className="lg:col-span-1">
                   <Input
                     placeholder="Search description, account, category..."
-                    className="pl-10"
-                    value={searchTerm}
                     onChange={(e) => handleSearchChange(e.target.value)}
+                    className="w-full"
                   />
                 </div>
 
@@ -278,7 +287,7 @@ export default function Transactions() {
                   <SelectContent>
                     <SelectItem value="all">All accounts</SelectItem>
                     {accounts.map((account) => (
-                      <SelectItem key={account._id} value={account._id.toString()}>
+                      <SelectItem key={account._id} value={account._id}>
                         {account.name}
                       </SelectItem>
                     ))}
@@ -292,61 +301,67 @@ export default function Transactions() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All categories</SelectItem>
-                    {categories.map((category) => (
-                      <SelectItem key={category._id} value={category._id.toString()}>
-                        <div className="flex items-center">
-                          <i
-                            className={`${category.icon} mr-2`}
-                            style={{ color: category.color }}
-                          />
-                          {category.name}
-                        </div>
+                    {filteredCategoriesForDropdown.map((category) => (
+                      <SelectItem key={category._id} value={category._id}>
+                        {category.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
 
-                {/* Type Filter */}
-                <Select value={selectedType} onValueChange={setSelectedType}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="All types" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All types</SelectItem>
-                    <SelectItem value="income">Income</SelectItem>
-                    <SelectItem value="expense">Expense</SelectItem>
-                  </SelectContent>
-                </Select>
+              {/* Type and Kind Filters */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                {/* Transaction Type Filter */}
+                <div className="flex-1">
+                  <Label className="text-sm font-medium">Transaction Type</Label>
+                  <RadioGroup
+                    value={selectedType}
+                    onValueChange={setSelectedType}
+                    className="flex items-center space-x-4 mt-2"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="all" id="type-all" />
+                      <Label htmlFor="type-all">All</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="income" id="type-income" />
+                      <Label htmlFor="type-income">Income</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="expense" id="type-expense" />
+                      <Label htmlFor="type-expense">Expense</Label>
+                    </div>
+                  </RadioGroup>
+                </div>
 
-                {/* Sort Options */}
-                <div className="flex gap-2">
-                  <Select value={sortBy} onValueChange={setSortBy}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sort by" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="date">Date</SelectItem>
-                      <SelectItem value="amount">Amount</SelectItem>
-                      <SelectItem value="description">Description</SelectItem>
-                      <SelectItem value="account">Account</SelectItem>
-                      <SelectItem value="category">Category</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Select value={sortOrder} onValueChange={setSortOrder}>
-                    <SelectTrigger className="w-24">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="asc">↑ Asc</SelectItem>
-                      <SelectItem value="desc">↓ Desc</SelectItem>
-                    </SelectContent>
-                  </Select>
+                {/* Transaction Kind Filter */}
+                <div className="flex-1">
+                  <Label className="text-sm font-medium">Kind</Label>
+                  <RadioGroup
+                    value={selectedTransactionKind}
+                    onValueChange={setSelectedTransactionKind}
+                    className="flex items-center space-x-4 mt-2"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="all" id="kind-all" />
+                      <Label htmlFor="kind-all">All</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="transaction" id="kind-transaction" />
+                      <Label htmlFor="kind-transaction">Transactions</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="transfer" id="kind-transfer" />
+                      <Label htmlFor="kind-transfer">Transfers</Label>
+                    </div>
+                  </RadioGroup>
                 </div>
               </div>
 
               {/* Advanced Filters */}
-              <Collapsible open={showAdvancedFilters} onOpenChange={setShowAdvancedFilters}>
-                <CollapsibleContent className="space-y-4">
+              <Collapsible open={showAdvancedFilters} onOpenChange={setShowAdvancedFilters} className="mt-4">
+                <CollapsibleContent>
                   <div className="border-t border-border pt-4 mt-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                       {/* Date Range */}
@@ -459,12 +474,12 @@ export default function Transactions() {
                     <i className="fas fa-receipt text-muted-foreground text-xl" />
                   </div>
                   <p className="text-lg font-medium text-foreground mb-2">
-                    {searchTerm || selectedAccount !== "all" || selectedCategory !== "all" || selectedType !== "all"
+                    {searchTerm || selectedAccount !== "all" || selectedCategory !== "all" || selectedType !== "all" || selectedTransactionKind !== "all"
                       ? "No transactions match your filters"
                       : "No transactions yet"}
                   </p>
                   <p className="text-muted-foreground mb-4">
-                    {searchTerm || selectedAccount !== "all" || selectedCategory !== "all" || selectedType !== "all"
+                    {searchTerm || selectedAccount !== "all" || selectedCategory !== "all" || selectedType !== "all" || selectedTransactionKind !== "all"
                       ? "Try adjusting your search or filter criteria"
                       : "Add your first transaction to get started"}
                   </p>
@@ -564,7 +579,7 @@ export default function Transactions() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => deleteTransaction && handleDelete(deleteTransaction)}
+              onClick={() => deleteTransaction && handleDelete(Number(deleteTransaction))}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleteMutation.isPending ? "Deleting..." : "Delete"}

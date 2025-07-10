@@ -64,6 +64,8 @@ export function AddTransactionModal({ open, onOpenChange }: AddTransactionModalP
     enabled: open,
   });
 
+  const filteredCategories = categories.filter(c => c.name !== 'Transfer');
+
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -194,7 +196,7 @@ export function AddTransactionModal({ open, onOpenChange }: AddTransactionModalP
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {categories.map((category) => (
+                      {filteredCategories.map((category) => (
                         <SelectItem key={category._id} value={category._id}>
                           <div className="flex items-center">
                             <i className={`${category.icon} mr-2`} style={{ color: category.color }} />

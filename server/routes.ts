@@ -83,7 +83,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "User not found" });
       }
 
-      const { username, email, profileImageUrl } = req.body;
+      const { username, email } = req.body;
 
       // Basic validation
       if (username && username.length < 3) {
@@ -96,7 +96,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check if email is already taken by another user
       if (email) {
         const existingUser = await storage.getUserByEmail(email);
-        if (existingUser && existingUser._id !== userId) {
+        if (existingUser && existingUser._id.toString() !== userId) {
           return res.status(400).json({ message: "Email is already taken" });
         }
       }
@@ -104,7 +104,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updatedUser = await storage.updateUser(userId, { 
         username, 
         email, 
-        profileImageUrl 
       });
       
       if (!updatedUser) {
@@ -117,7 +116,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           id: updatedUser._id,
           username: updatedUser.username,
           email: updatedUser.email,
-          profileImageUrl: updatedUser.profileImageUrl
         }
       });
     } catch (error) {
@@ -237,6 +235,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ message: "Failed to delete account" });
+    }
+  });
+
+  app.get("/api/transfers/recent", authMiddleware, async (req: AuthenticatedRequest, res) => {
+    try {
+      const transfers = await storage.getRecentTransfers(req.user!.id);
+      res.json(transfers);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch recent transfers" });
     }
   });
 

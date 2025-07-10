@@ -20,22 +20,20 @@ export function StatCard({
 }: StatCardProps) {
   return (
     <Card className={cn("stat-card", className)}>
-      <CardContent className="stat-card-content">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <div className={cn("stat-card-icon", iconBgColor)}>
-                <i className={cn(icon, "text-sm")} />
-              </div>
+      <CardContent className="flex items-center p-6">
+        <div className="flex items-center w-full">
+          <div className="flex-shrink-0">
+            <div className={cn("stat-card-icon", iconBgColor)}>
+              <i className={cn(icon, "text-sm")} />
             </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-muted-foreground">
-                {title}
-              </p>
-              <p className={cn("text-2xl font-bold", valueColor)}>
-                {value}
-              </p>
-            </div>
+          </div>
+          <div className="ml-4">
+            <p className="text-sm font-medium text-muted-foreground">
+              {title}
+            </p>
+            <p className={cn("text-2xl font-bold", valueColor)}>
+              {value}
+            </p>
           </div>
         </div>
       </CardContent>

@@ -49,6 +49,8 @@ export default function Categories() {
     },
   });
 
+  const filteredCategories = categories.filter(c => c.name !== 'Transfer');
+
   const handleDelete = (id: number) => {
     deleteMutation.mutate(id);
   };
@@ -99,7 +101,7 @@ export default function Categories() {
                   </Card>
                 ))}
               </div>
-            ) : categories.length === 0 ? (
+            ) : filteredCategories.length === 0 ? (
               <div className="text-center py-12">
                 <div className="w-16 h-16 mx-auto bg-muted rounded-full flex items-center justify-center mb-4">
                   <i className="fas fa-tags text-muted-foreground text-xl" />
@@ -119,52 +121,37 @@ export default function Categories() {
                 </Button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {categories.map((category) => (
-                  <Card key={category.id} className="hover:shadow-md transition-shadow">
-                    <CardContent className="pt-6">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center flex-1 min-w-0">
-                          <div
-                            className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
-                            style={{ backgroundColor: category.color, color: 'white' }}
-                          >
-                            <i className={`${category.icon} text-sm`} />
-                          </div>
-                          <div className="ml-3 min-w-0 flex-1">
-                            <h3 className="text-sm font-semibold text-foreground truncate">
-                              {category.name}
-                            </h3>
-                          </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredCategories.map((category) => (
+                  <Card key={category._id} className="group relative">
+                    <CardContent className="p-4 flex items-center justify-between">
+                      <div className="flex items-center">
+                        <div
+                          className="w-10 h-10 rounded-lg flex items-center justify-center mr-4"
+                          style={{ backgroundColor: category.color }}
+                        >
+                          <i className={`${category.icon} text-white text-lg`} />
                         </div>
-                        <div className="flex space-x-1 flex-shrink-0 ml-2">
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                            <Edit2 className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setDeleteCategory(category.id)}
-                            className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
+                        <div>
+                          <p className="font-semibold text-foreground">{category.name}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {/* Placeholder for transaction count */}
+                            0 Transactions
+                          </p>
                         </div>
                       </div>
-                      
-                      <div className="mt-4">
-                        <div 
-                          className="h-2 rounded-full"
-                          style={{ backgroundColor: `${category.color}20` }}
+                      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                        {/* <Button variant="ghost" size="sm" onClick={() => handleEdit(category)}>
+                          <Edit2 className="h-4 w-4" />
+                        </Button> */}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-500 hover:text-red-600"
+                          onClick={() => setDeleteCategory(Number(category._id))}
                         >
-                          <div
-                            className="h-2 rounded-full"
-                            style={{ 
-                              backgroundColor: category.color,
-                              width: '100%'
-                            }}
-                          />
-                        </div>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </CardContent>
                   </Card>
@@ -174,7 +161,7 @@ export default function Categories() {
           </div>
 
           {/* Category Stats */}
-          {categories.length > 0 && (
+          {filteredCategories.length > 0 && (
             <div className="mt-8">
               <Card>
                 <CardHeader>
@@ -184,7 +171,7 @@ export default function Categories() {
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div className="text-center">
                       <p className="text-2xl font-bold text-foreground">
-                        {categories.length}
+                        {filteredCategories.length}
                       </p>
                       <p className="text-sm text-muted-foreground">
                         Total Categories
@@ -192,7 +179,7 @@ export default function Categories() {
                     </div>
                     <div className="text-center">
                       <p className="text-2xl font-bold text-green-600">
-                        {categories.filter(c => c.name.toLowerCase().includes('income')).length}
+                        {filteredCategories.filter(c => c.name.toLowerCase().includes('income')).length}
                       </p>
                       <p className="text-sm text-muted-foreground">
                         Income Categories
@@ -200,7 +187,7 @@ export default function Categories() {
                     </div>
                     <div className="text-center">
                       <p className="text-2xl font-bold text-red-600">
-                        {categories.filter(c => !c.name.toLowerCase().includes('income')).length}
+                        {filteredCategories.filter(c => !c.name.toLowerCase().includes('income')).length}
                       </p>
                       <p className="text-sm text-muted-foreground">
                         Expense Categories
@@ -208,7 +195,7 @@ export default function Categories() {
                     </div>
                     <div className="text-center">
                       <p className="text-2xl font-bold text-blue-600">
-                        {new Set(categories.map(c => c.color)).size}
+                        {new Set(filteredCategories.map(c => c.color)).size}
                       </p>
                       <p className="text-sm text-muted-foreground">
                         Unique Colors

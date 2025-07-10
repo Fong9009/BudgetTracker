@@ -231,7 +231,6 @@ export class MongoDBStorage implements IStorage {
       username: doc.username,
       email: doc.email,
       password: doc.password,
-      profileImageUrl: doc.profileImageUrl,
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt
     };
@@ -319,13 +318,13 @@ export class MongoDBStorage implements IStorage {
         // Create or find a "Transfer" category
         let transferCategory = await CategoryModel.findOne({ name: "Transfer", userId }).session(session);
         if (!transferCategory) {
-          transferCategory = await CategoryModel.create([{
+          const newCategories = await CategoryModel.create([{
             name: "Transfer",
             color: "#6366f1",
             icon: "fas fa-exchange-alt",
             userId
           }], { session });
-          transferCategory = transferCategory[0];
+          transferCategory = newCategories[0];
         }
 
         // Create debit transaction for source account
@@ -335,7 +334,7 @@ export class MongoDBStorage implements IStorage {
           type: "expense",
           date: new Date(transfer.date),
           accountId: transfer.fromAccountId,
-          categoryId: transferCategory._id.toString()
+          categoryId: transferCategory!._id.toString()
         };
 
         // Create credit transaction for destination account
@@ -345,7 +344,7 @@ export class MongoDBStorage implements IStorage {
           type: "income",
           date: new Date(transfer.date),
           accountId: transfer.toAccountId,
-          categoryId: transferCategory._id.toString()
+          categoryId: transferCategory!._id.toString()
         };
 
         // Create both transactions
@@ -388,6 +387,22 @@ export class MongoDBStorage implements IStorage {
     } finally {
       await session.endSession();
     }
+  }
+
+  async getRecentTransfers(userId: string) {
+    const userAccounts = await AccountModel.find({ userId }).select('_id');
+    const userAccountIds = userAccounts.map(a => a._id);
+
+    const transfers = await TransactionModel.find({
+      accountId: { $in: userAccountIds },
+      type: 'expense',
+      description: { $regex: /^Transfer to/ }
+    })
+    .sort({ date: -1 })
+    .limit(5)
+    .populate('accountId');
+
+    return transfers;
   }
 }
 
