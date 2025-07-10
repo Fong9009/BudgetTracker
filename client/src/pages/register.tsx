@@ -23,6 +23,7 @@ export default function Register({ onRegister, onSwitchToLogin }: RegisterProps)
       username: "",
       email: "",
       password: "",
+      confirmPassword: "",
     },
   });
 
@@ -97,6 +98,20 @@ export default function Register({ onRegister, onSwitchToLogin }: RegisterProps)
                     <FormLabel>Password</FormLabel>
                     <FormControl>
                       <Input type="password" placeholder="Enter your password (min 6 characters)" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="confirmPassword"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Confirm Password</FormLabel>
+                    <FormControl>
+                      <Input type="password" placeholder="Confirm your password" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

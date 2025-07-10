@@ -4,6 +4,8 @@ import { storage } from "./storage";
 import { insertAccountSchema, insertCategorySchema, insertTransactionSchema, transferSchema, registerUserSchema, loginUserSchema } from "@shared/schema";
 import { authMiddleware, generateToken, comparePassword, hashPassword, type AuthenticatedRequest } from "./auth";
 import { z } from "zod";
+import { sendEmail } from "./mail";
+import crypto from "crypto";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Authentication routes
@@ -78,7 +80,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/auth/profile", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {
-      const userId = req.user?.id;
+      const userId = req.user?._id;
       if (!userId) {
         return res.status(401).json({ message: "User not found" });
       }
@@ -126,7 +128,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/auth/change-password", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {
-      const userId = req.user?.id;
+      const userId = req.user?._id;
       if (!userId) {
         return res.status(401).json({ message: "User not found" });
       }
@@ -172,10 +174,94 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/auth/forgot-password", async (req, res) => {
+    try {
+      const { email } = req.body;
+      const user = await storage.getUserByEmail(email);
+
+      if (!user) {
+        return res.status(200).json({ message: "If a user with that email exists, a password reset link has been sent." });
+      }
+
+      const resetToken = crypto.randomBytes(20).toString('hex');
+      const resetPasswordExpires = new Date(Date.now() + 3600000);
+
+      await storage.updateUser(user._id, {
+        resetPasswordToken: resetToken,
+        resetPasswordExpires: resetPasswordExpires,
+      });
+
+      const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
+
+      const message = `
+        <h1>You have requested a password reset</h1>
+        <p>Please go to this link to reset your password:</p>
+        <a href="${resetUrl}" target="_blank">${resetUrl}</a>
+        <p>This link will expire in one hour.</p>
+        <p>If you did not request this, please ignore this email.</p>
+      `;
+
+      try {
+        await sendEmail({
+          to: user.email,
+          subject: 'Password Reset Request',
+          text: `Please use the following link to reset your password: ${resetUrl}`,
+          html: message,
+        });
+
+        res.status(200).json({ message: "If a user with that email exists, a password reset link has been sent." });
+      } catch (err) {
+        console.error(err);
+        await storage.updateUser(user._id, {
+          resetPasswordToken: undefined,
+          resetPasswordExpires: undefined,
+        });
+        res.status(500).json({ message: "Error sending password reset email." });
+      }
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/auth/reset-password", async (req, res) => {
+    try {
+      const { token, password } = req.body;
+      
+      if (!token || !password) {
+        return res.status(400).json({ message: "Token and password are required." });
+      }
+
+      if (password.length < 6) {
+        return res.status(400).json({ message: "Password must be at least 6 characters." });
+      }
+
+      const user = await storage.getUserByResetToken(token);
+
+      if (!user) {
+        return res.status(400).json({ message: "Password reset token is invalid or has expired." });
+      }
+
+      const hashedPassword = await hashPassword(password);
+
+      await storage.updateUser(user._id, {
+        password: hashedPassword,
+        resetPasswordToken: undefined,
+        resetPasswordExpires: undefined,
+      });
+
+      res.status(200).json({ message: "Password has been reset successfully." });
+
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   // Account routes (protected)
   app.get("/api/accounts", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {
-      const accounts = await storage.getAccounts(req.user!.id);
+      const accounts = await storage.getAccounts(req.user!._id);
       res.json(accounts);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch accounts" });
@@ -198,7 +284,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/accounts", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {
       const validatedData = insertAccountSchema.parse(req.body);
-      const account = await storage.createAccount(validatedData, req.user!.id);
+      const account = await storage.createAccount(validatedData, req.user!._id);
       res.status(201).json(account);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -240,7 +326,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/transfers/recent", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {
-      const transfers = await storage.getRecentTransfers(req.user!.id);
+      const transfers = await storage.getRecentTransfers(req.user!._id);
       res.json(transfers);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch recent transfers" });
@@ -250,7 +336,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Category routes
   app.get("/api/categories", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {
-      const categories = await storage.getCategories(req.user!.id);
+      const categories = await storage.getCategories(req.user!._id);
       res.json(categories);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch categories" });
@@ -273,7 +359,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/categories", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {
       const validatedData = insertCategorySchema.parse(req.body);
-      const category = await storage.createCategory(validatedData, req.user!.id);
+      const category = await storage.createCategory(validatedData, req.user!._id);
       res.status(201).json(category);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -316,7 +402,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Transaction routes
   app.get("/api/transactions", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {
-      const transactions = await storage.getTransactions(req.user!.id);
+      const transactions = await storage.getTransactions(req.user!._id);
       res.json(transactions);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch transactions" });
@@ -383,7 +469,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/transfers", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {
       const validatedData = transferSchema.parse(req.body);
-      const result = await storage.createTransfer(validatedData, req.user!.id);
+      const result = await storage.createTransfer(validatedData, req.user!._id);
       res.status(201).json({
         message: "Transfer completed successfully",
         fromTransaction: result.fromTransaction,
@@ -408,8 +494,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Analytics routes
   app.get("/api/analytics/summary", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {
-      const accounts = await storage.getAccounts(req.user!.id);
-      const transactions = await storage.getTransactions(req.user!.id);
+      const accounts = await storage.getAccounts(req.user!._id);
+      const transactions = await storage.getTransactions(req.user!._id);
       
       const totalBalance = accounts.reduce((sum, account) => {
         return sum + parseFloat(account.balance.toString());
@@ -447,8 +533,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/analytics/category-spending", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {
-      const transactions = await storage.getTransactions(req.user!.id);
-      const categories = await storage.getCategories(req.user!.id);
+      const transactions = await storage.getTransactions(req.user!._id);
+      const categories = await storage.getCategories(req.user!._id);
       
       const currentMonth = new Date().getMonth();
       const currentYear = new Date().getFullYear();

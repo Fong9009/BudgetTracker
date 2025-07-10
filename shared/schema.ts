@@ -6,6 +6,8 @@ const UserSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true },
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
+  resetPasswordToken: { type: String },
+  resetPasswordExpires: { type: Date },
 }, { timestamps: true });
 
 const AccountSchema = new mongoose.Schema({
@@ -42,6 +44,10 @@ export const registerUserSchema = z.object({
   username: z.string().min(3).max(20),
   email: z.string().email(),
   password: z.string().min(6),
+  confirmPassword: z.string()
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
 });
 
 export const loginUserSchema = z.object({
@@ -87,6 +93,8 @@ export interface User {
   username: string;
   email: string;
   password: string;
+  resetPasswordToken?: string;
+  resetPasswordExpires?: Date;
   createdAt: Date;
   updatedAt: Date;
 }

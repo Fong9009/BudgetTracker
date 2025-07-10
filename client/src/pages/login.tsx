@@ -13,9 +13,10 @@ import { useToast } from "@/hooks/use-toast";
 interface LoginProps {
   onLogin: (token: string, user: any) => void;
   onSwitchToRegister: () => void;
+  onForgotPassword: () => void;
 }
 
-export default function Login({ onLogin, onSwitchToRegister }: LoginProps) {
+export default function Login({ onLogin, onSwitchToRegister, onForgotPassword }: LoginProps) {
   const { toast } = useToast();
   
   const form = useForm<LoginUser>({
@@ -98,15 +99,21 @@ export default function Login({ onLogin, onSwitchToRegister }: LoginProps) {
               </Button>
             </form>
           </Form>
-          
+
           <div className="mt-4 text-center">
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              Don't have an account?{" "}
               <button
                 onClick={onSwitchToRegister}
                 className="text-blue-600 hover:text-blue-800 font-medium"
               >
-                Sign up
+                Create an account
+              </button>
+              <span className="mx-2">|</span>
+              <button
+                onClick={onForgotPassword}
+                className="text-blue-600 hover:text-blue-800 font-medium"
+              >
+                Forgot Password?
               </button>
             </p>
           </div>

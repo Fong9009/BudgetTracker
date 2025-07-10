@@ -6,6 +6,7 @@ export interface IStorage {
   createUser(user: RegisterUser): Promise<User>;
   getUserByEmail(email: string): Promise<User | undefined>;
   getUserById(id: string): Promise<User | undefined>;
+  getUserByResetToken(token: string): Promise<User | undefined>;
   updateUser(id: string, updates: Partial<User>): Promise<User | undefined>;
   
   // Accounts
@@ -60,13 +61,45 @@ export class MongoDBStorage implements IStorage {
     return user ? this.transformUser(user) : undefined;
   }
 
+  async getUserByResetToken(token: string): Promise<User | undefined> {
+    const user = await UserModel.findOne({
+      resetPasswordToken: token,
+      resetPasswordExpires: { $gt: new Date() },
+    });
+    return user ? this.transformUser(user) : undefined;
+  }
+
   async updateUser(id: string, updates: Partial<User>): Promise<User | undefined> {
+    const updatePayload: any = { $set: {}, $unset: {} };
+
+    for (const key in updates) {
+      const value = (updates as any)[key];
+      if (value !== undefined) {
+        updatePayload.$set[key] = value;
+      } else {
+        updatePayload.$unset[key] = "";
+      }
+    }
+
+    if (Object.keys(updatePayload.$set).length === 0) {
+      delete updatePayload.$set;
+    }
+    if (Object.keys(updatePayload.$unset).length === 0) {
+      delete updatePayload.$unset;
+    }
+    
+    if (Object.keys(updatePayload).length === 0) {
+      return this.getUserById(id);
+    }
+
+    if (!updatePayload.$set) {
+      updatePayload.$set = {};
+    }
+    updatePayload.$set.updatedAt = new Date();
+
     const user = await UserModel.findByIdAndUpdate(
-      id, 
-      { 
-        ...updates,
-        updatedAt: new Date()
-      }, 
+      id,
+      updatePayload,
       { new: true }
     );
     return user ? this.transformUser(user) : undefined;
