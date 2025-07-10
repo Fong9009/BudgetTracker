@@ -61,7 +61,7 @@ export function AddAccountModal({ open, onOpenChange }: AddAccountModalProps) {
   const createMutation = useMutation({
     mutationFn: async (data: FormData) => {
       const response = await apiRequest("POST", "/api/accounts", data);
-      return response.json();
+      return response;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/accounts"] });

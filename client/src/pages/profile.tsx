@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Camera, Eye, EyeOff, Save, User } from "lucide-react";
+import { Camera, Eye, EyeOff, Save, User, Mail, Edit } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,8 +14,11 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest } from "@/lib/queryClient";
 
-const profileFormSchema = z.object({
+const usernameFormSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters"),
+});
+
+const emailFormSchema = z.object({
   email: z.string().email("Please enter a valid email"),
 });
 
@@ -28,7 +31,8 @@ const passwordFormSchema = z.object({
   path: ["confirmPassword"],
 });
 
-type ProfileFormData = z.infer<typeof profileFormSchema>;
+type UsernameFormData = z.infer<typeof usernameFormSchema>;
+type EmailFormData = z.infer<typeof emailFormSchema>;
 type PasswordFormData = z.infer<typeof passwordFormSchema>;
 
 export default function Profile() {
@@ -40,10 +44,16 @@ export default function Profile() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [profileImageUrl, setProfileImageUrl] = useState<string>("");
 
-  const profileForm = useForm<ProfileFormData>({
-    resolver: zodResolver(profileFormSchema),
+  const usernameForm = useForm<UsernameFormData>({
+    resolver: zodResolver(usernameFormSchema),
     defaultValues: {
       username: user?.username || "",
+    },
+  });
+
+  const emailForm = useForm<EmailFormData>({
+    resolver: zodResolver(emailFormSchema),
+    defaultValues: {
       email: user?.email || "",
     },
   });
@@ -57,19 +67,15 @@ export default function Profile() {
     },
   });
 
-  const updateProfileMutation = useMutation({
-    mutationFn: async (data: ProfileFormData & { profileImageUrl?: string }) => {
-      return await apiRequest("/api/auth/profile", {
-        method: "PUT",
-        body: JSON.stringify(data),
-      });
+  const updateProfileImageMutation = useMutation({
+    mutationFn: async (profileImageUrl: string) => {
+      return await apiRequest("PUT", "/api/auth/profile", { profileImageUrl });
     },
     onSuccess: (response) => {
       toast({
-        title: "Profile Updated",
-        description: "Your profile has been updated successfully.",
+        title: "Profile Picture Updated",
+        description: "Your profile picture has been updated successfully.",
       });
-      // Update the auth context with new user data
       if (response.user) {
         login(response.token || localStorage.getItem("token") || "", response.user);
       }
@@ -78,7 +84,53 @@ export default function Profile() {
     onError: (error: any) => {
       toast({
         title: "Error",
-        description: error.message || "Failed to update profile",
+        description: error.message || "Failed to update profile picture",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateUsernameMutation = useMutation({
+    mutationFn: async (data: UsernameFormData) => {
+      return await apiRequest("PUT", "/api/auth/profile", data);
+    },
+    onSuccess: (response) => {
+      toast({
+        title: "Username Updated",
+        description: "Your username has been updated successfully.",
+      });
+      if (response.user) {
+        login(response.token || localStorage.getItem("token") || "", response.user);
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update username",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateEmailMutation = useMutation({
+    mutationFn: async (data: EmailFormData) => {
+      return await apiRequest("PUT", "/api/auth/profile", data);
+    },
+    onSuccess: (response) => {
+      toast({
+        title: "Email Updated",
+        description: "Your email has been updated successfully.",
+      });
+      if (response.user) {
+        login(response.token || localStorage.getItem("token") || "", response.user);
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update email",
         variant: "destructive",
       });
     },
@@ -86,10 +138,7 @@ export default function Profile() {
 
   const updatePasswordMutation = useMutation({
     mutationFn: async (data: PasswordFormData) => {
-      return await apiRequest("/api/auth/change-password", {
-        method: "PUT",
-        body: JSON.stringify(data),
-      });
+      return await apiRequest("PUT", "/api/auth/change-password", data);
     },
     onSuccess: () => {
       toast({
@@ -107,11 +156,12 @@ export default function Profile() {
     },
   });
 
-  const onProfileSubmit = (data: ProfileFormData) => {
-    updateProfileMutation.mutate({
-      ...data,
-      profileImageUrl: profileImageUrl || undefined,
-    });
+  const onUsernameSubmit = (data: UsernameFormData) => {
+    updateUsernameMutation.mutate(data);
+  };
+
+  const onEmailSubmit = (data: EmailFormData) => {
+    updateEmailMutation.mutate(data);
   };
 
   const onPasswordSubmit = (data: PasswordFormData) => {
@@ -145,6 +195,7 @@ export default function Profile() {
       reader.onload = (e) => {
         const result = e.target?.result as string;
         setProfileImageUrl(result);
+        updateProfileImageMutation.mutate(result);
       };
       reader.readAsDataURL(file);
     }
@@ -180,10 +231,16 @@ export default function Profile() {
               </Avatar>
               <div className="flex flex-col items-center space-y-2">
                 <Label htmlFor="profile-image" className="cursor-pointer">
-                  <Button variant="outline" size="sm" className="flex items-center gap-2" asChild>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="flex items-center gap-2" 
+                    asChild
+                    disabled={updateProfileImageMutation.isPending}
+                  >
                     <span>
                       <Camera className="h-4 w-4" />
-                      Change Picture
+                      {updateProfileImageMutation.isPending ? "Uploading..." : "Change Picture"}
                     </span>
                   </Button>
                 </Label>
@@ -195,52 +252,111 @@ export default function Profile() {
                   onChange={handleImageUpload}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Upload a new profile picture
+                  Upload a new profile picture (auto-saves)
                 </p>
               </div>
             </div>
 
-            {/* Profile Form */}
-            <Form {...profileForm}>
-              <form onSubmit={profileForm.handleSubmit(onProfileSubmit)} className="space-y-4">
-                <FormField
-                  control={profileForm.control}
-                  name="username"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Username</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Enter your username" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={profileForm.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Enter your email" type="email" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+            {/* Current Account Information */}
+            <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+              <h3 className="text-sm font-semibold text-foreground">Current Account Information</h3>
+              
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Username:</span>
+                  <span className="text-sm font-medium">{user?.username || "Not set"}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Email:</span>
+                  <span className="text-sm font-medium">{user?.email || "Not set"}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">User ID:</span>
+                  <span className="text-sm font-medium text-xs">
+                    {user?._id ? `${user._id.slice(0, 8)}...` : "Unknown"}
+                  </span>
+                </div>
+              </div>
+            </div>
 
-                <Button 
-                  type="submit" 
-                  className="w-full flex items-center gap-2"
-                  disabled={updateProfileMutation.isPending}
-                >
-                  <Save className="h-4 w-4" />
-                  {updateProfileMutation.isPending ? "Updating..." : "Update Profile"}
-                </Button>
-              </form>
-            </Form>
+            {/* Username Form */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium flex items-center gap-2">
+                  <Edit className="h-4 w-4" />
+                  Update Username
+                </Label>
+                <span className="text-xs text-muted-foreground">Current: {user?.username}</span>
+              </div>
+              <Form {...usernameForm}>
+                <form onSubmit={usernameForm.handleSubmit(onUsernameSubmit)} className="flex gap-2">
+                  <FormField
+                    control={usernameForm.control}
+                    name="username"
+                    render={({ field }) => (
+                      <FormItem className="flex-1">
+                        <FormControl>
+                          <Input 
+                            placeholder={`Current: ${user?.username || "Enter username"}`} 
+                            {...field} 
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <Button 
+                    type="submit" 
+                    size="sm"
+                    disabled={updateUsernameMutation.isPending}
+                    className="flex items-center gap-1"
+                  >
+                    <Save className="h-3 w-3" />
+                    {updateUsernameMutation.isPending ? "..." : "Save"}
+                  </Button>
+                </form>
+              </Form>
+            </div>
+
+            {/* Email Form */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium flex items-center gap-2">
+                  <Mail className="h-4 w-4" />
+                  Update Email
+                </Label>
+                <span className="text-xs text-muted-foreground">Current: {user?.email}</span>
+              </div>
+              <Form {...emailForm}>
+                <form onSubmit={emailForm.handleSubmit(onEmailSubmit)} className="flex gap-2">
+                  <FormField
+                    control={emailForm.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem className="flex-1">
+                        <FormControl>
+                          <Input 
+                            placeholder={`Current: ${user?.email || "Enter email"}`} 
+                            type="email" 
+                            {...field} 
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <Button 
+                    type="submit" 
+                    size="sm"
+                    disabled={updateEmailMutation.isPending}
+                    className="flex items-center gap-1"
+                  >
+                    <Save className="h-3 w-3" />
+                    {updateEmailMutation.isPending ? "..." : "Save"}
+                  </Button>
+                </form>
+              </Form>
+            </div>
           </CardContent>
         </Card>
 

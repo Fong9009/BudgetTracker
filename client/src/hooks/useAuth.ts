@@ -1,11 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-
-interface User {
-  id: string;
-  username: string;
-  email: string;
-}
+import type { User } from "@shared/schema";
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
@@ -16,7 +11,7 @@ export function useAuth() {
   const queryClient = useQueryClient();
 
   // Verify token and get user data when token exists
-  const { data: userData, error, isError } = useQuery({
+  const { data: userData, error, isError } = useQuery<{ user: User }>({
     queryKey: ["/api/auth/me"],
     enabled: !!token,
     retry: false,
@@ -24,8 +19,8 @@ export function useAuth() {
   });
 
   useEffect(() => {
-    if (userData && token) {
-      setUser(userData);
+    if (userData?.user && token) {
+      setUser(userData.user);
       setIsLoading(false);
     } else if ((isError || error) && token) {
       // Token is invalid, clear it

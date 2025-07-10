@@ -79,7 +79,7 @@ export function AddTransactionModal({ open, onOpenChange }: AddTransactionModalP
   const createMutation = useMutation({
     mutationFn: async (data: FormData) => {
       const response = await apiRequest("POST", "/api/transactions", data);
-      return response.json();
+      return response;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/transactions"] });
@@ -195,7 +195,7 @@ export function AddTransactionModal({ open, onOpenChange }: AddTransactionModalP
                     </FormControl>
                     <SelectContent>
                       {categories.map((category) => (
-                        <SelectItem key={category.id} value={category.id.toString()}>
+                        <SelectItem key={category._id} value={category._id}>
                           <div className="flex items-center">
                             <i className={`${category.icon} mr-2`} style={{ color: category.color }} />
                             {category.name}
@@ -223,7 +223,7 @@ export function AddTransactionModal({ open, onOpenChange }: AddTransactionModalP
                     </FormControl>
                     <SelectContent>
                       {accounts.map((account) => (
-                        <SelectItem key={account.id} value={account.id.toString()}>
+                        <SelectItem key={account._id} value={account._id}>
                           {account.name} ({account.type})
                         </SelectItem>
                       ))}

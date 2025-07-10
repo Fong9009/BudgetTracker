@@ -157,7 +157,7 @@ export default function Dashboard() {
                 ) : (
                   <div className="space-y-0 divide-y divide-border">
                     {recentTransactions.map((transaction) => (
-                      <div key={transaction.id} className="transaction-item">
+                      <div key={transaction._id} className="transaction-item">
                         <div className="flex items-center">
                           <div className="flex-shrink-0">
                             <div
@@ -240,7 +240,7 @@ export default function Dashboard() {
                   <div className="space-y-4">
                     {accounts.map((account) => (
                       <div
-                        key={account.id}
+                        key={account._id}
                         className="flex items-center justify-between p-4 bg-muted/50 rounded-lg"
                       >
                         <div className="flex items-center">
@@ -259,8 +259,8 @@ export default function Dashboard() {
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className={`text-sm font-medium ${parseFloat(account.balance) < 0 ? 'text-red-600' : 'text-foreground'}`}>
-                            {formatCurrency(account.balance)}
+                          <p className={`text-sm font-medium ${account.balance < 0 ? 'text-red-600' : 'text-foreground'}`}>
+                            {formatCurrency(account.balance.toString())}
                           </p>
                           <p className="text-sm text-muted-foreground">Current Balance</p>
                         </div>
@@ -286,7 +286,7 @@ export default function Dashboard() {
                       const percentage = totalSpending > 0 ? (parseFloat(category.amount) / totalSpending) * 100 : 0;
                       
                       return (
-                        <div key={category.id} className="flex items-center justify-between">
+                        <div key={category.id.toString()} className="flex items-center justify-between">
                           <div className="flex items-center">
                             <div className="flex-shrink-0">
                               <div
