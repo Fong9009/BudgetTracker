@@ -5,20 +5,7 @@ import dotenv from 'dotenv';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const envPath = path.resolve(__dirname, '..', '.env');
-
-const result = dotenv.config({ path: envPath });
-
-if (result.error) {
-  console.error('!!! ERROR LOADING .env FILE !!!', result.error);
-}
-
-console.log('---↓↓↓ DEBUGGING EMAIL VARS ↓↓↓---');
-console.log('Attempting to load .env from:', envPath);
-console.log('Loaded .env file content:', result.parsed);
-console.log('MAIL_HOST from process.env:', process.env.MAIL_HOST);
-console.log('MAIL_USER from process.env:', process.env.MAIL_USER);
-console.log('---↑↑↑ END DEBUGGING ↑↑↑---');
-
+dotenv.config({ path: envPath });
 
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
