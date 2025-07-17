@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/ui/stat-card";
 import { AddTransactionModal } from "@/components/modals/add-transaction-modal";
 import { AddAccountModal } from "@/components/modals/add-account-modal";
+import { TransferModal } from "@/components/modals/transfer-modal";
 import { ExportModal } from "@/components/export/export-modal";
 import { formatCurrency, formatDate, getAccountTypeIcon, getAccountTypeColor, getTransactionTypeColor } from "@/lib/utils";
 import { Plus, Download, ArrowRightLeft } from "lucide-react";
@@ -29,6 +30,7 @@ interface CategorySpending {
 export default function Dashboard() {
   const [showAddTransaction, setShowAddTransaction] = useState(false);
   const [showAddAccount, setShowAddAccount] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
 
   const { data: accounts = [], isLoading: accountsLoading } = useQuery<Account[]>({
@@ -77,6 +79,14 @@ export default function Dashboard() {
               >
                 <Download className="h-4 w-4" />
                 Export
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setShowTransferModal(true)}
+                className="flex items-center gap-2"
+              >
+                <ArrowRightLeft className="h-4 w-4" />
+                Transfer
               </Button>
               <Button
                 onClick={() => setShowAddTransaction(true)}
@@ -394,6 +404,10 @@ export default function Dashboard() {
       <AddAccountModal
         open={showAddAccount}
         onOpenChange={setShowAddAccount}
+      />
+      <TransferModal
+        open={showTransferModal}
+        onOpenChange={setShowTransferModal}
       />
       <ExportModal
         open={showExportModal}

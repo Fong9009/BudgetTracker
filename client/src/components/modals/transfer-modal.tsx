@@ -88,6 +88,7 @@ export function TransferModal({ open, onOpenChange }: TransferModalProps) {
       toast({
         title: "Success",
         description: "Transfer completed successfully",
+        variant: "success",
       });
       form.reset();
       onOpenChange(false);

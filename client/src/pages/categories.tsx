@@ -40,6 +40,7 @@ export default function Categories() {
       toast({
         title: "Success",
         description: "Category deleted successfully",
+        variant: "success",
       });
       setDeleteCategory(null);
     },

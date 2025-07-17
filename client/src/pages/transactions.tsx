@@ -83,6 +83,7 @@ export default function Transactions() {
       toast({
         title: "Success",
         description: "Transaction deleted successfully",
+        variant: "success",
       });
       setDeleteTransaction(null);
     },

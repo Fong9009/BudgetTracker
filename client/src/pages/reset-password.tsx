@@ -40,6 +40,7 @@ export default function ResetPassword({ token, onSuccess }: ResetPasswordProps) 
       toast({
         title: "Success!",
         description: data.message,
+        variant: "success",
       });
       onSuccess();
     },

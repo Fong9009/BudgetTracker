@@ -35,6 +35,7 @@ export default function Register({ onSwitchToLogin }: RegisterProps) {
       toast({
         title: "Success",
         description: "Account created! Please sign in.",
+        variant: "success",
       });
       onSwitchToLogin();
     },

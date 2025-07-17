@@ -44,6 +44,7 @@ export default function Accounts() {
       toast({
         title: "Success",
         description: "Account deleted successfully",
+        variant: "success",
       });
       setDeleteAccount(null);
     },

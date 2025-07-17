@@ -86,6 +86,7 @@ export function EditCategoryModal({ open, onOpenChange, category }: EditCategory
       toast({
         title: "Success",
         description: "Category updated successfully",
+        variant: "success",
       });
       onOpenChange(false);
     },

@@ -69,6 +69,7 @@ export function AddAccountModal({ open, onOpenChange }: AddAccountModalProps) {
       toast({
         title: "Success",
         description: "Account added successfully",
+        variant: "success",
       });
       form.reset();
       onOpenChange(false);

@@ -35,6 +35,7 @@ export default function ForgotPassword({ onSwitchToLogin }: ForgotPasswordProps)
       toast({
         title: "Check your email",
         description: data.message,
+        variant: "success",
       });
     },
     onError: (error: any) => {

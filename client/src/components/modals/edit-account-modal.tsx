@@ -93,6 +93,7 @@ export function EditAccountModal({ open, onOpenChange, account }: EditAccountMod
       toast({
         title: "Success",
         description: "Account updated successfully",
+        variant: "success",
       });
       onOpenChange(false);
     },

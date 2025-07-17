@@ -74,6 +74,7 @@ export function ExportModal({ open, onOpenChange }: ExportModalProps) {
       toast({
         title: "Export successful",
         description: `Your ${exportType.toUpperCase()} file has been downloaded.`,
+        variant: "success",
       });
       
       onOpenChange(false);

@@ -90,6 +90,7 @@ export function AddTransactionModal({ open, onOpenChange }: AddTransactionModalP
       toast({
         title: "Success",
         description: "Transaction added successfully",
+        variant: "success",
       });
       form.reset();
       onOpenChange(false);

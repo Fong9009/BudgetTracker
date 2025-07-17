@@ -104,6 +104,7 @@ export default function Profile() {
       toast({
         title: "Username Updated",
         description: "Your username has been updated successfully.",
+        variant: "success",
       });
       if (response.user) {
         login(response.token || localStorage.getItem("token") || "", response.user);
@@ -127,6 +128,7 @@ export default function Profile() {
       toast({
         title: "Email Updated",
         description: "Your email has been updated successfully.",
+        variant: "success",
       });
       if (response.user) {
         login(response.token || localStorage.getItem("token") || "", response.user);
@@ -150,6 +152,7 @@ export default function Profile() {
       toast({
         title: "Password Updated",
         description: "Your password has been changed successfully.",
+        variant: "success",
       });
       passwordForm.reset();
     },

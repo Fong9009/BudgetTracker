@@ -38,6 +38,7 @@ export default function Login({ onLogin, onSwitchToRegister, onForgotPassword }:
       toast({
         title: "Success",
         description: "Logged in successfully!",
+        variant: "success",
       });
     },
     onError: (error: any) => {

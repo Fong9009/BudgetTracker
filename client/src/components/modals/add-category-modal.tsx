@@ -86,6 +86,7 @@ export function AddCategoryModal({ open, onOpenChange }: AddCategoryModalProps) 
       toast({
         title: "Success",
         description: "Category added successfully",
+        variant: "success",
       });
       form.reset();
       onOpenChange(false);
