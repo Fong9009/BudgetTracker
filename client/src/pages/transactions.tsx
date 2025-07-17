@@ -28,7 +28,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { AddTransactionModal } from "@/components/modals/add-transaction-modal";
 import { TransferModal } from "@/components/modals/transfer-modal";
 import { ExportModal } from "@/components/export/export-modal";
-import { formatCurrency, formatDateFull, getTransactionTypeColor, debounce, cn } from "@/lib/utils";
+import { formatCurrency, formatDateFull, getTransactionTypeColor, debounce, cn, groupTransferTransactions, type TransactionOrTransfer } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Search, Edit2, Trash2, Download, Calendar as CalendarIcon, Filter, ChevronDown, X, SlidersHorizontal, ArrowRightLeft } from "lucide-react";
@@ -73,8 +73,8 @@ export default function Transactions() {
   const filteredCategoriesForDropdown = categories.filter(c => c.name !== 'Transfer');
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: number) => {
-      await apiRequest("DELETE", `/api/transactions/${id.toString()}`);
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/transactions/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/transactions"] });
@@ -96,38 +96,62 @@ export default function Transactions() {
     },
   });
 
-  // Filter and sort transactions based on all criteria
+  // Group transfers and filter/sort all transactions
   const filteredAndSortedTransactions = useMemo(() => {
-    let filtered = transactions.filter((transaction) => {
+    // First group the transfer transactions
+    const groupedTransactions = groupTransferTransactions(transactions);
+    
+    // Then filter the grouped transactions
+    let filtered = groupedTransactions.filter((item) => {
       // Text search (description, account name, category name)
       const searchText = searchTerm.toLowerCase();
-      const matchesSearch = !searchText || 
-        transaction.description.toLowerCase().includes(searchText) ||
-        transaction.account.name.toLowerCase().includes(searchText) ||
-        transaction.category.name.toLowerCase().includes(searchText);
+      let matchesSearch = false;
       
-      // Filter by account
-      const matchesAccount = selectedAccount === "all" || transaction.accountId === selectedAccount;
+      if (!searchText) {
+        matchesSearch = true;
+      } else if (item.type === 'transfer') {
+        // For transfers, search in description and both account names
+        matchesSearch = item.description.toLowerCase().includes(searchText) ||
+          item.fromAccount!.name.toLowerCase().includes(searchText) ||
+          item.toAccount!.name.toLowerCase().includes(searchText) ||
+          item.category.name.toLowerCase().includes(searchText);
+      } else {
+        // For regular transactions
+        matchesSearch = item.description.toLowerCase().includes(searchText) ||
+          item.account.name.toLowerCase().includes(searchText) ||
+          item.category.name.toLowerCase().includes(searchText);
+      }
+      
+      // Filter by account - for transfers, match either from or to account
+      let matchesAccount = false;
+      if (selectedAccount === "all") {
+        matchesAccount = true;
+      } else if (item.type === 'transfer') {
+        matchesAccount = item.fromAccount!._id === selectedAccount || item.toAccount!._id === selectedAccount;
+      } else {
+        matchesAccount = item.accountId === selectedAccount;
+      }
       
       // Filter by category
-      const matchesCategory = selectedCategory === "all" || transaction.categoryId === selectedCategory;
+      const matchesCategory = selectedCategory === "all" || item.categoryId === selectedCategory;
       
       // Filter by type
-      const matchesType = selectedType === "all" || transaction.type === selectedType;
+      const matchesType = selectedType === "all" || 
+        (selectedType === "transfer" && item.type === "transfer") ||
+        (selectedType !== "transfer" && item.type === selectedType);
       
       // Filter by transaction kind
-      const isTransfer = transaction.description.startsWith("Transfer to");
       const matchesKind = selectedTransactionKind === "all" ||
-        (selectedTransactionKind === "transfer" && isTransfer) ||
-        (selectedTransactionKind === "transaction" && !isTransfer);
+        (selectedTransactionKind === "transfer" && item.type === "transfer") ||
+        (selectedTransactionKind === "transaction" && item.type !== "transfer");
       
       // Filter by date range
-      const transactionDate = new Date(transaction.date);
+      const transactionDate = new Date(item.date);
       const matchesDateFrom = !dateFrom || transactionDate >= dateFrom;
       const matchesDateTo = !dateTo || transactionDate <= dateTo;
       
       // Filter by amount range
-      const amount = Math.abs(transaction.amount);
+      const amount = Math.abs(item.amount);
       const matchesAmountMin = !amountMin || amount >= parseFloat(amountMin);
       const matchesAmountMax = !amountMax || amount <= parseFloat(amountMax);
 
@@ -150,7 +174,15 @@ export default function Transactions() {
           comparison = a.description.localeCompare(b.description);
           break;
         case "account":
-          comparison = a.account.name.localeCompare(b.account.name);
+          if (a.type === 'transfer' && b.type === 'transfer') {
+            comparison = a.fromAccount!.name.localeCompare(b.fromAccount!.name);
+          } else if (a.type === 'transfer') {
+            comparison = a.fromAccount!.name.localeCompare(b.account.name);
+          } else if (b.type === 'transfer') {
+            comparison = a.account.name.localeCompare(b.fromAccount!.name);
+          } else {
+            comparison = a.account.name.localeCompare(b.account.name);
+          }
           break;
         case "category":
           comparison = a.category.name.localeCompare(b.category.name);
@@ -190,7 +222,7 @@ export default function Transactions() {
   const hasActiveFilters = searchTerm || selectedAccount !== "all" || selectedCategory !== "all" || 
     selectedType !== "all" || selectedTransactionKind !== "all" || dateFrom || dateTo || amountMin || amountMax;
 
-  const handleDelete = (id: number) => {
+  const handleDelete = (id: string) => {
     deleteMutation.mutate(id);
   };
 
@@ -332,6 +364,10 @@ export default function Transactions() {
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="expense" id="type-expense" />
                       <Label htmlFor="type-expense">Expense</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="transfer" id="type-transfer" />
+                      <Label htmlFor="type-transfer">Transfer</Label>
                     </div>
                   </RadioGroup>
                 </div>
@@ -494,46 +530,68 @@ export default function Transactions() {
                 </div>
               ) : (
                 <div className="space-y-0 divide-y divide-border">
-                  {filteredAndSortedTransactions.map((transaction) => (
-                    <div key={transaction._id} className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors">
+                  {filteredAndSortedTransactions.map((item) => (
+                    <div key={item._id} className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors">
                       <div className="flex items-center flex-1">
                         <div className="flex-shrink-0">
                           <div
                             className="w-10 h-10 rounded-lg flex items-center justify-center"
-                            style={{ backgroundColor: transaction.category.color, color: 'white' }}
+                            style={{ backgroundColor: item.category.color, color: 'white' }}
                           >
-                            <i className={`${transaction.category.icon} text-sm`} />
+                            {item.type === 'transfer' ? (
+                              <ArrowRightLeft className="h-5 w-5" />
+                            ) : (
+                              <i className={`${item.category.icon} text-sm`} />
+                            )}
                           </div>
                         </div>
                         <div className="ml-4 flex-1">
                           <div className="flex items-center justify-between">
                             <div>
                               <p className="text-sm font-medium text-foreground">
-                                {transaction.description}
+                                {item.type === 'transfer' 
+                                  ? `Transfer: ${item.description}`
+                                  : item.description
+                                }
                               </p>
                               <p className="text-sm text-muted-foreground">
-                                {transaction.category.name} • {transaction.account.name}
+                                {item.type === 'transfer' 
+                                  ? `${item.fromAccount!.name} → ${item.toAccount!.name}`
+                                  : `${item.category.name} • ${item.account.name}`
+                                }
                               </p>
                             </div>
                             <div className="text-right">
-                              <p className={`text-sm font-medium ${getTransactionTypeColor(transaction.type)}`}>
-                                {transaction.type === 'income' ? '+' : '-'}
-                                {formatCurrency(transaction.amount)}
+                              <p className={`text-sm font-medium ${
+                                item.type === 'transfer' 
+                                  ? 'text-foreground'
+                                  : getTransactionTypeColor(item.type)
+                              }`}>
+                                {item.type === 'transfer' 
+                                  ? formatCurrency(item.amount)
+                                  : `${item.type === 'income' ? '+' : '-'}${formatCurrency(item.amount)}`
+                                }
                               </p>
                               <p className="text-sm text-muted-foreground">
-                                {formatDateFull(transaction.date)}
+                                {formatDateFull(item.date)}
                               </p>
                             </div>
                           </div>
                         </div>
                         <div className="ml-4 flex space-x-2">
-                          <Button variant="ghost" size="sm">
-                            <Edit2 className="h-4 w-4" />
-                          </Button>
+                          {item.type !== 'transfer' && (
+                            <Button variant="ghost" size="sm">
+                              <Edit2 className="h-4 w-4" />
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => setDeleteTransaction(transaction._id)}
+                            onClick={() => setDeleteTransaction(
+                              item.type === 'transfer' 
+                                ? item.fromTransactionId! 
+                                : item._id
+                            )}
                             className="text-destructive hover:text-destructive"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -580,7 +638,7 @@ export default function Transactions() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => deleteTransaction && handleDelete(Number(deleteTransaction))}
+              onClick={() => deleteTransaction && handleDelete(deleteTransaction)}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleteMutation.isPending ? "Deleting..." : "Delete"}

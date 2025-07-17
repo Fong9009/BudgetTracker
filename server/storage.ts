@@ -253,8 +253,111 @@ export class MongoDBStorage implements IStorage {
   }
 
   async deleteTransaction(id: string): Promise<boolean> {
-    const result = await TransactionModel.findByIdAndDelete(id);
-    return !!result;
+    const session = await TransactionModel.startSession();
+    
+    try {
+      let deletedCount = 0;
+      
+      await session.withTransaction(async () => {
+        // Find the transaction to delete
+        const transaction = await TransactionModel.findById(id).session(session);
+        if (!transaction) {
+          return;
+        }
+        
+        // Check if this is a transfer transaction
+        const isTransfer = transaction.description.startsWith('Transfer to ') || 
+                          transaction.description.startsWith('Transfer from ');
+        
+        if (isTransfer) {
+          // For transfers, we need to delete both transactions and revert account balances
+          const amount = transaction.amount;
+          const isFromTransaction = transaction.description.startsWith('Transfer to ');
+          
+          if (isFromTransaction) {
+            // This is the "from" transaction (expense)
+            // Find the corresponding "to" transaction (income)
+            const transferInfo = transaction.description.match(/^Transfer to ([^:]+): (.+)$/);
+            if (transferInfo) {
+              const [, toAccountName, userDescription] = transferInfo;
+              const toTransaction = await TransactionModel.findOne({
+                amount: amount,
+                type: 'income',
+                description: { $regex: `^Transfer from .+: ${userDescription.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$` },
+                date: transaction.date
+              }).session(session);
+              
+              if (toTransaction) {
+                // Delete both transactions
+                await TransactionModel.findByIdAndDelete(transaction._id).session(session);
+                await TransactionModel.findByIdAndDelete(toTransaction._id).session(session);
+                
+                // Revert account balances
+                await Promise.all([
+                  AccountModel.findByIdAndUpdate(transaction.accountId, { 
+                    $inc: { balance: amount } // Add back the amount that was subtracted
+                  }, { session }),
+                  AccountModel.findByIdAndUpdate(toTransaction.accountId, { 
+                    $inc: { balance: -amount } // Subtract the amount that was added
+                  }, { session })
+                ]);
+                
+                deletedCount = 2;
+              } else {
+                // Only delete this transaction if we can't find the pair
+                await TransactionModel.findByIdAndDelete(transaction._id).session(session);
+                deletedCount = 1;
+              }
+            }
+          } else {
+            // This is the "to" transaction (income)
+            // Find the corresponding "from" transaction (expense)
+            const transferInfo = transaction.description.match(/^Transfer from ([^:]+): (.+)$/);
+            if (transferInfo) {
+              const [, fromAccountName, userDescription] = transferInfo;
+              const fromTransaction = await TransactionModel.findOne({
+                amount: amount,
+                type: 'expense',
+                description: { $regex: `^Transfer to .+: ${userDescription.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$` },
+                date: transaction.date
+              }).session(session);
+              
+              if (fromTransaction) {
+                // Delete both transactions
+                await TransactionModel.findByIdAndDelete(transaction._id).session(session);
+                await TransactionModel.findByIdAndDelete(fromTransaction._id).session(session);
+                
+                // Revert account balances
+                await Promise.all([
+                  AccountModel.findByIdAndUpdate(fromTransaction.accountId, { 
+                    $inc: { balance: amount } // Add back the amount that was subtracted
+                  }, { session }),
+                  AccountModel.findByIdAndUpdate(transaction.accountId, { 
+                    $inc: { balance: -amount } // Subtract the amount that was added
+                  }, { session })
+                ]);
+                
+                deletedCount = 2;
+              } else {
+                // Only delete this transaction if we can't find the pair
+                await TransactionModel.findByIdAndDelete(transaction._id).session(session);
+                deletedCount = 1;
+              }
+            }
+          }
+        } else {
+          // Regular transaction - just delete it
+          await TransactionModel.findByIdAndDelete(transaction._id).session(session);
+          deletedCount = 1;
+        }
+      });
+      
+      return deletedCount > 0;
+    } catch (error) {
+      throw error;
+    } finally {
+      await session.endSession();
+    }
   }
 
   // Helper methods to transform MongoDB documents to our interface types

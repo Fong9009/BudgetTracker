@@ -512,11 +512,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       const monthlyIncome = currentMonthTransactions
-        .filter(t => t.type === 'income')
+        .filter(t => t.type === 'income' && t.category.name !== 'Transfer')
         .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
 
       const monthlyExpenses = currentMonthTransactions
-        .filter(t => t.type === 'expense')
+        .filter(t => t.type === 'expense' && t.category.name !== 'Transfer')
         .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
 
       const savingsRate = monthlyIncome > 0 ? ((monthlyIncome - monthlyExpenses) / monthlyIncome) * 100 : 0;
@@ -538,16 +538,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const categories = await storage.getCategories(userId);
       const transactions = await storage.getTransactions(userId);
 
-      const spendingByCategory = categories.map(category => {
-        const total = transactions
-          .filter(t => t.category._id.toString() === category._id.toString() && t.type === 'expense')
-          .reduce((sum, t) => sum + t.amount, 0);
-        return {
-          category: category.name,
-          total,
-          color: category.color
-        };
+      // Get current month transactions for spending analysis
+      const currentMonth = new Date().getMonth();
+      const currentYear = new Date().getFullYear();
+      
+      const currentMonthTransactions = transactions.filter(t => {
+        const transactionDate = new Date(t.date);
+        return transactionDate.getMonth() === currentMonth && 
+               transactionDate.getFullYear() === currentYear;
       });
+
+      const spendingByCategory = categories
+        .filter(category => category.name !== 'Transfer') // Exclude transfer category
+        .map(category => {
+          const categoryTransactions = currentMonthTransactions
+            .filter(t => t.category._id.toString() === category._id.toString() && t.type === 'expense');
+          
+          const total = categoryTransactions.reduce((sum, t) => sum + t.amount, 0);
+          
+          return {
+            id: parseInt(category._id.toString().slice(-8), 16), // Convert ObjectId to number for frontend
+            name: category.name,
+            amount: total.toFixed(2),
+            color: category.color,
+            icon: category.icon,
+            transactionCount: categoryTransactions.length
+          };
+        })
+        .filter(category => parseFloat(category.amount) > 0); // Only include categories with spending
 
       res.json(spendingByCategory);
     } catch (error) {
