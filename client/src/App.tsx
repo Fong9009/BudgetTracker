@@ -67,6 +67,15 @@ function App() {
             <ProtectedRoute path="/categories" component={Categories} />
             <ProtectedRoute path="/transactions" component={Transactions} />
             <ProtectedRoute path="/profile" component={Profile} />
+            <Route path="/login">
+              <Redirect to="/dashboard" />
+            </Route>
+            <Route path="/register">
+              <Redirect to="/dashboard" />
+            </Route>
+            <Route path="/forgot-password">
+              <Redirect to="/dashboard" />
+            </Route>
             <Route path="/">
               <Redirect to="/dashboard" />
             </Route>
