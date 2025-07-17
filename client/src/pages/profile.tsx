@@ -210,62 +210,68 @@ export default function Profile() {
           <CardContent className="space-y-6">
             {/* Username Form */}
             <Form {...usernameForm}>
-              <form onSubmit={usernameForm.handleSubmit(onUsernameSubmit)} className="flex gap-2">
+              <form onSubmit={usernameForm.handleSubmit(onUsernameSubmit)} className="space-y-2">
                 <FormField
                   control={usernameForm.control}
                   name="username"
                   render={({ field }) => (
-                    <FormItem className="flex-1">
-                      <FormControl>
-                        <Input 
-                          placeholder={`Current: ${user?.username || "Enter username"}`} 
-                          {...field} 
-                        />
-                      </FormControl>
+                    <FormItem>
+                      <FormLabel>Username</FormLabel>
+                      <div className="flex gap-2">
+                        <FormControl>
+                          <Input 
+                            placeholder={`Current: ${user?.username || "Enter username"}`} 
+                            {...field} 
+                          />
+                        </FormControl>
+                        <Button 
+                          type="submit" 
+                          size="sm"
+                          disabled={updateUsernameMutation.isPending}
+                          className="flex items-center gap-1"
+                        >
+                          <Save className="h-3 w-3" />
+                          {updateUsernameMutation.isPending ? "..." : "Save"}
+                        </Button>
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                <Button 
-                  type="submit" 
-                  size="sm"
-                  disabled={updateUsernameMutation.isPending}
-                  className="flex items-center gap-1"
-                >
-                  <Save className="h-3 w-3" />
-                  {updateUsernameMutation.isPending ? "..." : "Save"}
-                </Button>
               </form>
             </Form>
 
             {/* Email Form */}
             <Form {...emailForm}>
-              <form onSubmit={emailForm.handleSubmit(onEmailSubmit)} className="flex gap-2">
+              <form onSubmit={emailForm.handleSubmit(onEmailSubmit)} className="space-y-2">
                 <FormField
                   control={emailForm.control}
                   name="email"
                   render={({ field }) => (
-                    <FormItem className="flex-1">
-                      <FormControl>
-                        <Input 
-                          placeholder={`Current: ${user?.email || "Enter email"}`} 
-                          type="email" 
-                          {...field} 
-                        />
-                      </FormControl>
+                    <FormItem>
+                      <FormLabel>Email Address</FormLabel>
+                      <div className="flex gap-2">
+                        <FormControl>
+                          <Input 
+                            placeholder={`Current: ${user?.email || "Enter email"}`} 
+                            type="email" 
+                            {...field} 
+                          />
+                        </FormControl>
+                        <Button 
+                          type="submit" 
+                          size="sm"
+                          disabled={updateEmailMutation.isPending}
+                          className="flex items-center gap-1"
+                        >
+                          <Save className="h-3 w-3" />
+                          {updateEmailMutation.isPending ? "..." : "Save"}
+                        </Button>
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                <Button 
-                  type="submit" 
-                  size="sm"
-                  disabled={updateEmailMutation.isPending}
-                  className="flex items-center gap-1"
-                >
-                  <Save className="h-3 w-3" />
-                  {updateEmailMutation.isPending ? "..." : "Save"}
-                </Button>
               </form>
             </Form>
           </CardContent>
