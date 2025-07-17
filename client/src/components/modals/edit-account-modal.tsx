@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -30,6 +30,16 @@ import {
 import { Input } from "@/components/ui/input";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import type { Account } from "@shared/schema";
 
 const formSchema = z.object({
@@ -49,6 +59,8 @@ interface EditAccountModalProps {
 export function EditAccountModal({ open, onOpenChange, account }: EditAccountModalProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [pendingData, setPendingData] = useState<FormData | null>(null);
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -94,7 +106,16 @@ export function EditAccountModal({ open, onOpenChange, account }: EditAccountMod
   });
 
   const onSubmit = (data: FormData) => {
-    editMutation.mutate(data);
+    setPendingData(data);
+    setShowConfirmation(true);
+  };
+
+  const handleConfirmUpdate = () => {
+    if (pendingData) {
+      editMutation.mutate(pendingData);
+      setShowConfirmation(false);
+      setPendingData(null);
+    }
   };
 
   if (!account) return null;
@@ -187,6 +208,28 @@ export function EditAccountModal({ open, onOpenChange, account }: EditAccountMod
           </form>
         </Form>
       </DialogContent>
+      
+      <AlertDialog open={showConfirmation} onOpenChange={setShowConfirmation}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Account Update</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to update this account? This action will modify the account details.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setShowConfirmation(false);
+              setPendingData(null);
+            }}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmUpdate}>
+              {editMutation.isPending ? "Updating..." : "Update Account"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 } 

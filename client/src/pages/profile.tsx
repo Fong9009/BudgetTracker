@@ -12,6 +12,16 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest } from "@/lib/queryClient";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const usernameFormSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters"),
@@ -41,6 +51,14 @@ export default function Profile() {
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  
+  // Confirmation dialog states
+  const [showUsernameConfirmation, setShowUsernameConfirmation] = useState(false);
+  const [showEmailConfirmation, setShowEmailConfirmation] = useState(false);
+  const [showPasswordConfirmation, setShowPasswordConfirmation] = useState(false);
+  const [pendingUsernameData, setPendingUsernameData] = useState<UsernameFormData | null>(null);
+  const [pendingEmailData, setPendingEmailData] = useState<EmailFormData | null>(null);
+  const [pendingPasswordData, setPendingPasswordData] = useState<PasswordFormData | null>(null);
 
   const usernameForm = useForm<UsernameFormData>({
     resolver: zodResolver(usernameFormSchema),
@@ -132,15 +150,42 @@ export default function Profile() {
   });
 
   const onUsernameSubmit = (data: UsernameFormData) => {
-    updateUsernameMutation.mutate(data);
+    setPendingUsernameData(data);
+    setShowUsernameConfirmation(true);
   };
 
   const onEmailSubmit = (data: EmailFormData) => {
-    updateEmailMutation.mutate(data);
+    setPendingEmailData(data);
+    setShowEmailConfirmation(true);
   };
 
   const onPasswordSubmit = (data: PasswordFormData) => {
-    updatePasswordMutation.mutate(data);
+    setPendingPasswordData(data);
+    setShowPasswordConfirmation(true);
+  };
+
+  const handleConfirmUsernameUpdate = () => {
+    if (pendingUsernameData) {
+      updateUsernameMutation.mutate(pendingUsernameData);
+      setShowUsernameConfirmation(false);
+      setPendingUsernameData(null);
+    }
+  };
+
+  const handleConfirmEmailUpdate = () => {
+    if (pendingEmailData) {
+      updateEmailMutation.mutate(pendingEmailData);
+      setShowEmailConfirmation(false);
+      setPendingEmailData(null);
+    }
+  };
+
+  const handleConfirmPasswordUpdate = () => {
+    if (pendingPasswordData) {
+      updatePasswordMutation.mutate(pendingPasswordData);
+      setShowPasswordConfirmation(false);
+      setPendingPasswordData(null);
+    }
   };
 
   return (
@@ -348,6 +393,75 @@ export default function Profile() {
           </CardContent>
         </Card>
       </div>
+      
+      {/* Username Update Confirmation */}
+      <AlertDialog open={showUsernameConfirmation} onOpenChange={setShowUsernameConfirmation}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Username Update</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to update your username? This action will change your display name.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setShowUsernameConfirmation(false);
+              setPendingUsernameData(null);
+            }}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmUsernameUpdate}>
+              {updateUsernameMutation.isPending ? "Updating..." : "Update Username"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Email Update Confirmation */}
+      <AlertDialog open={showEmailConfirmation} onOpenChange={setShowEmailConfirmation}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Email Update</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to update your email address? This action will change your login email.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setShowEmailConfirmation(false);
+              setPendingEmailData(null);
+            }}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmEmailUpdate}>
+              {updateEmailMutation.isPending ? "Updating..." : "Update Email"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Password Update Confirmation */}
+      <AlertDialog open={showPasswordConfirmation} onOpenChange={setShowPasswordConfirmation}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Password Change</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to change your password? This action will update your account security.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setShowPasswordConfirmation(false);
+              setPendingPasswordData(null);
+            }}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmPasswordUpdate}>
+              {updatePasswordMutation.isPending ? "Updating..." : "Change Password"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
