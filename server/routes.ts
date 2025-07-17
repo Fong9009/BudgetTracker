@@ -268,7 +268,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/accounts/:id", async (req, res) => {
+  app.get("/api/accounts/:id", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {
       const id = req.params.id;
       const account = await storage.getAccount(id);
@@ -294,7 +294,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/accounts/:id", async (req, res) => {
+  app.put("/api/accounts/:id", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {
       const id = req.params.id;
       const validatedData = insertAccountSchema.partial().parse(req.body);
@@ -311,7 +311,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/accounts/:id", async (req, res) => {
+  app.delete("/api/accounts/:id", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {
       const id = req.params.id;
       const deleted = await storage.deleteAccount(id);
@@ -333,7 +333,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Category routes
+  // Category routes (protected)
   app.get("/api/categories", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {
       const categories = await storage.getCategories(req.user!._id);
@@ -343,7 +343,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/categories/:id", async (req, res) => {
+  app.get("/api/categories/:id", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {
       const id = req.params.id;
       const category = await storage.getCategory(id);
@@ -369,7 +369,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/categories/:id", async (req, res) => {
+  app.put("/api/categories/:id", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {
       const id = req.params.id;
       const validatedData = insertCategorySchema.partial().parse(req.body);
@@ -386,7 +386,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/categories/:id", async (req, res) => {
+  app.delete("/api/categories/:id", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {
       const id = req.params.id;
       const deleted = await storage.deleteCategory(id);
@@ -399,7 +399,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Transaction routes
+  // Transaction routes (protected)
   app.get("/api/transactions", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {
       const transactions = await storage.getTransactions(req.user!._id);
@@ -409,7 +409,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/transactions/:id", async (req, res) => {
+  app.get("/api/transactions/:id", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {
       const id = req.params.id;
       const transaction = await storage.getTransaction(id);
@@ -422,7 +422,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/transactions", async (req, res) => {
+  app.post("/api/transactions", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {
       const validatedData = insertTransactionSchema.parse(req.body);
       const transaction = await storage.createTransaction(validatedData);
@@ -435,7 +435,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/transactions/:id", async (req, res) => {
+  app.put("/api/transactions/:id", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {
       const id = req.params.id;
       const validatedData = insertTransactionSchema.partial().parse(req.body);
@@ -452,7 +452,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/transactions/:id", async (req, res) => {
+  app.delete("/api/transactions/:id", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {
       const id = req.params.id;
       const deleted = await storage.deleteTransaction(id);
@@ -465,7 +465,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Transfer routes
+  // Transfer routes (protected)
   app.post("/api/transfers", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {
       const validatedData = transferSchema.parse(req.body);
@@ -491,11 +491,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Analytics routes
+  // Analytics routes (protected)
   app.get("/api/analytics/summary", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {
-      const accounts = await storage.getAccounts(req.user!._id);
-      const transactions = await storage.getTransactions(req.user!._id);
+      const userId = req.user!._id;
+      const accounts = await storage.getAccounts(userId);
+      const transactions = await storage.getTransactions(userId);
       
       const totalBalance = accounts.reduce((sum, account) => {
         return sum + parseFloat(account.balance.toString());
@@ -527,39 +528,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
         savingsRate: savingsRate.toFixed(1),
       });
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch analytics summary" });
+      res.status(500).json({ message: "Failed to fetch summary" });
     }
   });
 
-  app.get("/api/analytics/category-spending", authMiddleware, async (req: AuthenticatedRequest, res) => {
+  app.get("/api/analytics/spending-by-category", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {
-      const transactions = await storage.getTransactions(req.user!._id);
-      const categories = await storage.getCategories(req.user!._id);
-      
-      const currentMonth = new Date().getMonth();
-      const currentYear = new Date().getFullYear();
-      
-      const currentMonthExpenses = transactions.filter(t => {
-        const transactionDate = new Date(t.date);
-        return transactionDate.getMonth() === currentMonth && 
-               transactionDate.getFullYear() === currentYear &&
-               t.type === 'expense';
+      const userId = req.user!._id;
+      const categories = await storage.getCategories(userId);
+      const transactions = await storage.getTransactions(userId);
+
+      const spendingByCategory = categories.map(category => {
+        const total = transactions
+          .filter(t => t.category._id.toString() === category._id.toString() && t.type === 'expense')
+          .reduce((sum, t) => sum + t.amount, 0);
+        return {
+          category: category.name,
+          total,
+          color: category.color
+        };
       });
 
-      const categorySpending = categories.map(category => {
-        const categoryTransactions = currentMonthExpenses.filter(t => t.categoryId === category._id);
-        const totalAmount = categoryTransactions.reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
-        return {
-          ...category,
-          amount: totalAmount.toFixed(2),
-          transactionCount: categoryTransactions.length,
-        };
-      }).filter(cat => parseFloat(cat.amount) > 0)
-        .sort((a, b) => parseFloat(b.amount) - parseFloat(a.amount));
-
-      res.json(categorySpending);
+      res.json(spendingByCategory);
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch category spending" });
+      res.status(500).json({ message: "Failed to fetch spending by category" });
+    }
+  });
+
+  // Export routes (protected)
+  app.post("/api/export", authMiddleware, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { type } = req.body;
+      // In a real application, you would generate and send the export file here
+      // For example, if type is 'csv', you might generate a CSV string and send it as a file attachment.
+      // This is a placeholder for actual export logic.
+      res.status(200).json({ message: "Export functionality not yet implemented." });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to process export request" });
     }
   });
 

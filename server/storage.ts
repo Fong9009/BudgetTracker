@@ -98,7 +98,7 @@ export class MongoDBStorage implements IStorage {
     updatePayload.$set.updatedAt = new Date();
 
     const user = await UserModel.findByIdAndUpdate(
-      id,
+      id, 
       updatePayload,
       { new: true }
     );

@@ -119,7 +119,7 @@ export default function Transactions() {
       const matchesKind = selectedTransactionKind === "all" ||
         (selectedTransactionKind === "transfer" && isTransfer) ||
         (selectedTransactionKind === "transaction" && !isTransfer);
-
+      
       // Filter by date range
       const transactionDate = new Date(transaction.date);
       const matchesDateFrom = !dateFrom || transactionDate >= dateFrom;
@@ -303,7 +303,7 @@ export default function Transactions() {
                     <SelectItem value="all">All categories</SelectItem>
                     {filteredCategoriesForDropdown.map((category) => (
                       <SelectItem key={category._id} value={category._id}>
-                        {category.name}
+                          {category.name}
                       </SelectItem>
                     ))}
                   </SelectContent>

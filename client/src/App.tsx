@@ -46,7 +46,7 @@ function App() {
           <ForgotPassword onSwitchToLogin={() => setLocation('/login')} />
         </Route>
         <Route path="/reset-password/:token">
-          {({ token }) => <ResetPassword token={token} onSuccess={() => setLocation('/login')} />}
+          {({ token }: { token: string }) => <ResetPassword token={token} onSuccess={() => setLocation('/login')} />}
         </Route>
         <Route>
           <Redirect to="/login" />
@@ -84,7 +84,7 @@ function AppWrapper() {
       <AuthProvider>
         <App />
       </AuthProvider>
-      <Toaster />
+        <Toaster />
     </QueryClientProvider>
   );
 }

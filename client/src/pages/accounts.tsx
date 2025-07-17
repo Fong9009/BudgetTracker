@@ -13,6 +13,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { AddAccountModal } from "@/components/modals/add-account-modal";
+import { EditAccountModal } from "@/components/modals/edit-account-modal";
 import { TransferModal } from "@/components/modals/transfer-modal";
 import { formatCurrency, getAccountTypeIcon, getAccountTypeColor } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
@@ -22,7 +23,9 @@ import type { Account } from "@shared/schema";
 
 export default function Accounts() {
   const [showAddAccount, setShowAddAccount] = useState(false);
+  const [showEditAccount, setShowEditAccount] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
+  const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
   const [deleteAccount, setDeleteAccount] = useState<string | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -57,7 +60,10 @@ export default function Accounts() {
     deleteMutation.mutate(id);
   };
 
-  const totalBalance = accounts.reduce((sum, account) => sum + parseFloat(account.balance), 0);
+  const handleEdit = (account: Account) => {
+    setSelectedAccount(account);
+    setShowEditAccount(true);
+  };
 
   return (
     <div className="flex-1 relative overflow-y-auto focus:outline-none">
@@ -100,8 +106,8 @@ export default function Accounts() {
                 <h3 className="text-sm font-medium text-muted-foreground">
                   Total Net Worth
                 </h3>
-                <p className={`text-3xl font-bold mt-2 ${totalBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {formatCurrency(totalBalance)}
+                <p className={`text-3xl font-bold mt-2 ${accounts.reduce((sum, account) => sum + account.balance, 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  ${accounts.reduce((sum, account) => sum + account.balance, 0).toFixed(2)}
                 </p>
               </div>
             </CardContent>
@@ -174,7 +180,7 @@ export default function Accounts() {
                           </div>
                         </div>
                         <div className="flex space-x-2">
-                          <Button variant="ghost" size="sm">
+                          <Button variant="ghost" size="sm" onClick={() => handleEdit(account)}>
                             <Edit2 className="h-4 w-4" />
                           </Button>
                           <Button
@@ -193,13 +199,13 @@ export default function Accounts() {
                           <span className="text-sm text-muted-foreground">Current Balance</span>
                         </div>
                         <p className={`text-2xl font-bold ${
-                          parseFloat(account.balance) >= 0 ? 'text-foreground' : 'text-red-600'
+                          account.balance >= 0 ? 'text-foreground' : 'text-red-600'
                         }`}>
-                          {formatCurrency(account.balance)}
+                          ${account.balance.toFixed(2)}
                         </p>
                       </div>
 
-                      {account.type === 'credit' && parseFloat(account.balance) < 0 && (
+                      {account.type === 'credit' && account.balance < 0 && (
                         <div className="mt-4 p-3 bg-orange-50 dark:bg-orange-950/20 rounded-lg">
                           <p className="text-xs text-orange-700 dark:text-orange-400">
                             Outstanding balance on credit card
@@ -212,113 +218,35 @@ export default function Accounts() {
               </div>
             )}
           </div>
-
-          {/* Account Type Summary */}
-          {accounts.length > 0 && (
-            <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center">
-                    <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
-                      <i className="fas fa-university text-white" />
-                    </div>
-                    <div className="ml-4">
-                      <h3 className="text-sm font-medium text-muted-foreground">
-                        Checking Accounts
-                      </h3>
-                      <p className="text-lg font-semibold text-foreground">
-                        {formatCurrency(
-                          accounts
-                            .filter(a => a.type === 'checking')
-                            .reduce((sum, a) => sum + parseFloat(a.balance), 0)
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center">
-                    <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center">
-                      <i className="fas fa-piggy-bank text-white" />
-                    </div>
-                    <div className="ml-4">
-                      <h3 className="text-sm font-medium text-muted-foreground">
-                        Savings Accounts
-                      </h3>
-                      <p className="text-lg font-semibold text-foreground">
-                        {formatCurrency(
-                          accounts
-                            .filter(a => a.type === 'savings')
-                            .reduce((sum, a) => sum + parseFloat(a.balance), 0)
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center">
-                    <div className="w-10 h-10 bg-purple-500 rounded-lg flex items-center justify-center">
-                      <i className="fas fa-credit-card text-white" />
-                    </div>
-                    <div className="ml-4">
-                      <h3 className="text-sm font-medium text-muted-foreground">
-                        Credit Cards
-                      </h3>
-                      <p className="text-lg font-semibold text-red-600">
-                        {formatCurrency(
-                          Math.abs(accounts
-                            .filter(a => a.type === 'credit')
-                            .reduce((sum, a) => sum + parseFloat(a.balance), 0))
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
         </div>
+
+        {/* Modals */}
+        <AddAccountModal open={showAddAccount} onOpenChange={setShowAddAccount} />
+        <EditAccountModal open={showEditAccount} onOpenChange={setShowEditAccount} account={selectedAccount} />
+        <TransferModal open={showTransferModal} onOpenChange={setShowTransferModal} />
+
+        {/* Delete Confirmation */}
+        <AlertDialog open={deleteAccount !== null} onOpenChange={() => setDeleteAccount(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This action cannot be undone. This will permanently delete the account
+                and all associated transactions.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => deleteAccount && handleDelete(deleteAccount)}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {deleteMutation.isPending ? "Deleting..." : "Delete"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
-
-      {/* Add Account Modal */}
-      <AddAccountModal
-        open={showAddAccount}
-        onOpenChange={setShowAddAccount}
-      />
-
-      {/* Transfer Modal */}
-      <TransferModal
-        open={showTransferModal}
-        onOpenChange={setShowTransferModal}
-      />
-
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteAccount !== null} onOpenChange={() => setDeleteAccount(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the account
-              and all associated transactions.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => deleteAccount && handleDelete(deleteAccount)}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleteMutation.isPending ? "Deleting..." : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

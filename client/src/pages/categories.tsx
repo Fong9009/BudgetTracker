@@ -13,6 +13,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { AddCategoryModal } from "@/components/modals/add-category-modal";
+import { EditCategoryModal } from "@/components/modals/edit-category-modal";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Edit2, Trash2 } from "lucide-react";
@@ -20,7 +21,9 @@ import type { Category } from "@shared/schema";
 
 export default function Categories() {
   const [showAddCategory, setShowAddCategory] = useState(false);
-  const [deleteCategory, setDeleteCategory] = useState<number | null>(null);
+  const [showEditCategory, setShowEditCategory] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
+  const [deleteCategory, setDeleteCategory] = useState<string | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -29,7 +32,7 @@ export default function Categories() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: number) => {
+    mutationFn: async (id: string) => {
       await apiRequest("DELETE", `/api/categories/${id}`);
     },
     onSuccess: () => {
@@ -51,8 +54,13 @@ export default function Categories() {
 
   const filteredCategories = categories.filter(c => c.name !== 'Transfer');
 
-  const handleDelete = (id: number) => {
+  const handleDelete = (id: string) => {
     deleteMutation.mutate(id);
+  };
+
+  const handleEdit = (category: Category) => {
+    setSelectedCategory(category);
+    setShowEditCategory(true);
   };
 
   return (
@@ -83,18 +91,15 @@ export default function Categories() {
           {/* Categories Grid */}
           <div className="mt-8">
             {isLoading ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {[...Array(8)].map((_, i) => (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {[...Array(6)].map((_, i) => (
                   <Card key={i} className="animate-pulse">
-                    <CardContent className="pt-6">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-10 h-10 bg-muted rounded-lg" />
-                          <div className="h-4 bg-muted rounded w-20" />
-                        </div>
-                        <div className="flex space-x-2">
-                          <div className="w-8 h-8 bg-muted rounded" />
-                          <div className="w-8 h-8 bg-muted rounded" />
+                    <CardContent className="p-4">
+                      <div className="flex items-center">
+                        <div className="w-10 h-10 bg-muted rounded-lg mr-4" />
+                        <div className="space-y-2">
+                          <div className="h-4 bg-muted rounded w-24" />
+                          <div className="h-3 bg-muted rounded w-16" />
                         </div>
                       </div>
                     </CardContent>
@@ -104,7 +109,7 @@ export default function Categories() {
             ) : filteredCategories.length === 0 ? (
               <div className="text-center py-12">
                 <div className="w-16 h-16 mx-auto bg-muted rounded-full flex items-center justify-center mb-4">
-                  <i className="fas fa-tags text-muted-foreground text-xl" />
+                  <i className="fas fa-folder text-muted-foreground text-xl" />
                 </div>
                 <p className="text-lg font-medium text-foreground mb-2">
                   No categories yet
@@ -141,14 +146,14 @@ export default function Categories() {
                         </div>
                       </div>
                       <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-                        {/* <Button variant="ghost" size="sm" onClick={() => handleEdit(category)}>
+                        <Button variant="ghost" size="sm" onClick={() => handleEdit(category)}>
                           <Edit2 className="h-4 w-4" />
-                        </Button> */}
+                        </Button>
                         <Button
                           variant="ghost"
                           size="sm"
                           className="text-red-500 hover:text-red-600"
-                          onClick={() => setDeleteCategory(Number(category._id))}
+                          onClick={() => setDeleteCategory(category._id)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -165,10 +170,10 @@ export default function Categories() {
             <div className="mt-8">
               <Card>
                 <CardHeader>
-                  <CardTitle>Category Overview</CardTitle>
+                  <CardTitle className="text-lg">Category Overview</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="text-center">
                       <p className="text-2xl font-bold text-foreground">
                         {filteredCategories.length}
@@ -178,27 +183,19 @@ export default function Categories() {
                       </p>
                     </div>
                     <div className="text-center">
-                      <p className="text-2xl font-bold text-green-600">
-                        {filteredCategories.filter(c => c.name.toLowerCase().includes('income')).length}
+                      <p className="text-2xl font-bold text-foreground">
+                        0
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        Income Categories
+                        Active This Month
                       </p>
                     </div>
                     <div className="text-center">
-                      <p className="text-2xl font-bold text-red-600">
-                        {filteredCategories.filter(c => !c.name.toLowerCase().includes('income')).length}
+                      <p className="text-2xl font-bold text-foreground">
+                        0
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        Expense Categories
-                      </p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-2xl font-bold text-blue-600">
-                        {new Set(filteredCategories.map(c => c.color)).size}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        Unique Colors
+                        Total Transactions
                       </p>
                     </div>
                   </div>
@@ -209,10 +206,15 @@ export default function Categories() {
         </div>
       </div>
 
-      {/* Add Category Modal */}
+      {/* Modals */}
       <AddCategoryModal
         open={showAddCategory}
         onOpenChange={setShowAddCategory}
+      />
+      <EditCategoryModal
+        open={showEditCategory}
+        onOpenChange={setShowEditCategory}
+        category={selectedCategory}
       />
 
       {/* Delete Confirmation Dialog */}

@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { exportToCsv, exportToPdf } from "@/lib/export-utils";
 import { useToast } from "@/hooks/use-toast";
+import type { Transaction, Account, Category } from "@shared/schema";
 
 interface ExportModalProps {
   open: boolean;
@@ -26,22 +27,22 @@ export function ExportModal({ open, onOpenChange }: ExportModalProps) {
   const [isExporting, setIsExporting] = useState(false);
   const { toast } = useToast();
 
-  const { data: transactions = [] } = useQuery({
+  const { data: transactions = [] } = useQuery<Transaction[]>({
     queryKey: ["/api/transactions"],
     enabled: open,
   });
 
-  const { data: accounts = [] } = useQuery({
+  const { data: accounts = [] } = useQuery<Account[]>({
     queryKey: ["/api/accounts"],
     enabled: open,
   });
 
-  const { data: categories = [] } = useQuery({
+  const { data: categories = [] } = useQuery<Category[]>({
     queryKey: ["/api/categories"],
     enabled: open,
   });
 
-  const filteredTransactions = transactions.filter((transaction: any) => {
+  const filteredTransactions = transactions.filter((transaction: Transaction) => {
     const transactionDate = new Date(transaction.date);
     return transactionDate >= dateRange.from && transactionDate <= dateRange.to;
   });
@@ -58,10 +59,16 @@ export function ExportModal({ open, onOpenChange }: ExportModalProps) {
 
     setIsExporting(true);
     try {
+      // Convert dates to strings for export functions
+      const transactionsForExport = filteredTransactions.map(t => ({
+        ...t,
+        date: t.date.toISOString()
+      }));
+      
       if (exportType === "csv") {
-        await exportToCsv(filteredTransactions, accounts, categories, dateRange);
+        await exportToCsv(transactionsForExport, accounts, categories, dateRange);
       } else {
-        await exportToPdf(filteredTransactions, accounts, categories, dateRange);
+        await exportToPdf(transactionsForExport, accounts, categories, dateRange);
       }
       
       toast({
@@ -135,7 +142,7 @@ export function ExportModal({ open, onOpenChange }: ExportModalProps) {
                   <Calendar
                     mode="single"
                     selected={dateRange.from}
-                    onSelect={(date) => date && setDateRange(prev => ({ ...prev, from: date }))}
+                    onSelect={(date: Date | undefined) => date && setDateRange(prev => ({ ...prev, from: date }))}
                     initialFocus
                   />
                 </PopoverContent>
@@ -158,7 +165,7 @@ export function ExportModal({ open, onOpenChange }: ExportModalProps) {
                   <Calendar
                     mode="single"
                     selected={dateRange.to}
-                    onSelect={(date) => date && setDateRange(prev => ({ ...prev, to: date }))}
+                    onSelect={(date: Date | undefined) => date && setDateRange(prev => ({ ...prev, to: date }))}
                     initialFocus
                   />
                 </PopoverContent>

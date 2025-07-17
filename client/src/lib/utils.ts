@@ -39,6 +39,17 @@ export function formatDateFull(date: Date | string): string {
   return format(dateObj, 'MMM d, yyyy');
 }
 
+export function safeFormatCurrency(amount: string | number | undefined | null): string {
+  if (amount === undefined || amount === null) {
+    return formatCurrency(0);
+  }
+  const num = typeof amount === 'string' ? parseFloat(amount) : amount;
+  if (isNaN(num)) {
+    return formatCurrency(0);
+  }
+  return formatCurrency(num);
+}
+
 export function getAccountTypeIcon(type: string): string {
   switch (type.toLowerCase()) {
     case 'checking':
@@ -74,7 +85,7 @@ export function debounce<T extends (...args: any[]) => any>(
   wait: number
 ): (...args: Parameters<T>) => void {
   let timeout: NodeJS.Timeout;
-  return (...args: Parameters<T>) => {
+  return function(this: any, ...args: Parameters<T>) {
     clearTimeout(timeout);
     timeout = setTimeout(() => func.apply(this, args), wait);
   };

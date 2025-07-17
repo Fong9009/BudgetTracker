@@ -99,7 +99,7 @@ export default function Login({ onLogin, onSwitchToRegister, onForgotPassword }:
               </Button>
             </form>
           </Form>
-
+          
           <div className="mt-4 text-center">
             <p className="text-sm text-gray-600 dark:text-gray-400">
               <button
