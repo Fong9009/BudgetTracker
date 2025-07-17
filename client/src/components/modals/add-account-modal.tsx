@@ -105,7 +105,7 @@ export function AddAccountModal({ open, onOpenChange }: AddAccountModalProps) {
                 <FormItem>
                   <FormLabel>Account Name</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., Chase Checking" {...field} />
+                    <Input placeholder="e.g., ABA Checking" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

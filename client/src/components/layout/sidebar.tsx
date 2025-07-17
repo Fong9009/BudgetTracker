@@ -6,7 +6,6 @@ const navigation = [
   { name: "Transactions", href: "/transactions", icon: "fas fa-exchange-alt" },
   { name: "Accounts", href: "/accounts", icon: "fas fa-wallet" },
   { name: "Categories", href: "/categories", icon: "fas fa-tags" },
-  { name: "Profile", href: "/profile", icon: "fas fa-user-cog" },
 ];
 
 export function Sidebar() {

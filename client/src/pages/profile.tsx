@@ -190,15 +190,9 @@ export default function Profile() {
     
     if (/[A-Z]/.test(password)) strength += 1;
     else feedback.push("One uppercase letter");
-    
-    if (/[a-z]/.test(password)) strength += 1;
-    else feedback.push("One lowercase letter");
-    
+  
     if (/[0-9]/.test(password)) strength += 1;
     else feedback.push("One number");
-    
-    if (/[^A-Za-z0-9]/.test(password)) strength += 1;
-    else feedback.push("One special character");
     
     const levels = ['Very Weak', 'Weak', 'Fair', 'Good', 'Strong'];
     const colors = ['bg-red-500', 'bg-orange-500', 'bg-yellow-500', 'bg-blue-500', 'bg-green-500'];
@@ -579,7 +573,10 @@ export default function Profile() {
             }}>
               Cancel
             </AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmUsernameUpdate}>
+            <AlertDialogAction 
+              onClick={handleConfirmUsernameUpdate}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
               {updateUsernameMutation.isPending ? "Updating..." : "Update Username"}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -602,7 +599,10 @@ export default function Profile() {
             }}>
               Cancel
             </AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmEmailUpdate}>
+            <AlertDialogAction 
+              onClick={handleConfirmEmailUpdate}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
               {updateEmailMutation.isPending ? "Updating..." : "Update Email"}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -625,7 +625,10 @@ export default function Profile() {
             }}>
               Cancel
             </AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmPasswordUpdate}>
+            <AlertDialogAction 
+              onClick={handleConfirmPasswordUpdate}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
               {updatePasswordMutation.isPending ? "Updating..." : "Change Password"}
             </AlertDialogAction>
           </AlertDialogFooter>

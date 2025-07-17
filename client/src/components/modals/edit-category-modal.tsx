@@ -244,7 +244,10 @@ export function EditCategoryModal({ open, onOpenChange, category }: EditCategory
             }}>
               Cancel
             </AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmUpdate}>
+            <AlertDialogAction 
+              onClick={handleConfirmUpdate}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
               {editMutation.isPending ? "Updating..." : "Update Category"}
             </AlertDialogAction>
           </AlertDialogFooter>

@@ -139,7 +139,7 @@ export function EditAccountModal({ open, onOpenChange, account }: EditAccountMod
                 <FormItem>
                   <FormLabel>Account Name</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., Chase Checking" {...field} />
+                    <Input placeholder="e.g., ABA Checking" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -224,7 +224,10 @@ export function EditAccountModal({ open, onOpenChange, account }: EditAccountMod
             }}>
               Cancel
             </AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmUpdate}>
+            <AlertDialogAction 
+              onClick={handleConfirmUpdate}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
               {editMutation.isPending ? "Updating..." : "Update Account"}
             </AlertDialogAction>
           </AlertDialogFooter>
