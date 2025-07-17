@@ -40,7 +40,7 @@ function App() {
           <Login onLogin={login} onSwitchToRegister={() => setLocation('/register')} onForgotPassword={() => setLocation('/forgot-password')} />
         </Route>
         <Route path="/register">
-          <Register onRegister={login} onSwitchToLogin={() => setLocation('/login')} />
+          <Register onSwitchToLogin={() => setLocation('/login')} />
         </Route>
         <Route path="/forgot-password">
           <ForgotPassword onSwitchToLogin={() => setLocation('/login')} />

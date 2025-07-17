@@ -10,11 +10,10 @@ import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 
 interface RegisterProps {
-  onRegister: (token: string, user: any) => void;
   onSwitchToLogin: () => void;
 }
 
-export default function Register({ onRegister, onSwitchToLogin }: RegisterProps) {
+export default function Register({ onSwitchToLogin }: RegisterProps) {
   const { toast } = useToast();
   
   const form = useForm<RegisterUser>({
@@ -32,13 +31,12 @@ export default function Register({ onRegister, onSwitchToLogin }: RegisterProps)
       const response = await apiRequest("POST", "/api/auth/register", data);
       return response;
     },
-    onSuccess: (data) => {
-      localStorage.setItem("token", data.token);
-      onRegister(data.token, data.user);
+    onSuccess: () => {
       toast({
         title: "Success",
-        description: "Account created successfully!",
+        description: "Account created! Please sign in.",
       });
+      onSwitchToLogin();
     },
     onError: (error: any) => {
       toast({
