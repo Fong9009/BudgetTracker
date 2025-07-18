@@ -449,7 +449,7 @@ export class MongoDBStorage implements IStorage {
     // Get total count for pagination
     const total = await TransactionModel.countDocuments(baseQuery);
     const totalPages = Math.ceil(total / pagination.limit);
-    const currentPage = Math.min(pagination.page, totalPages);
+    const currentPage = Math.max(1, Math.min(pagination.page, totalPages || 1));
 
     // Build sort object
     const sortObj: any = {};
@@ -469,6 +469,9 @@ export class MongoDBStorage implements IStorage {
     
     sortObj[sortField] = sort.order === 'asc' ? 1 : -1;
 
+    // Calculate skip value with safety check
+    const skip = Math.max(0, (currentPage - 1) * pagination.limit);
+
     // Fetch transactions with pagination
     const transactions = await TransactionModel.find(baseQuery)
       .populate({
@@ -480,7 +483,7 @@ export class MongoDBStorage implements IStorage {
         match: { userId }
       })
       .sort(sortObj)
-      .skip((currentPage - 1) * pagination.limit)
+      .skip(skip)
       .limit(pagination.limit);
 
     // Filter out transactions where account or category doesn't belong to user
@@ -521,47 +524,89 @@ export class MongoDBStorage implements IStorage {
   }
 
   async createTransaction(insertTransaction: InsertTransaction): Promise<TransactionWithDetails> {
-    const session = await TransactionModel.startSession();
-    
     try {
-      let transaction: any;
+      // Try to use MongoDB transactions first
+      const session = await TransactionModel.startSession();
       
-      await session.withTransaction(async () => {
-        const transactionData = {
-          ...insertTransaction,
-          amount: parseFloat(insertTransaction.amount),
-          date: new Date(insertTransaction.date)
-        };
+      try {
+        let transaction: any;
         
-        // Create the transaction
-        const [createdTransaction] = await TransactionModel.create([transactionData], { session });
-        transaction = createdTransaction;
+        await session.withTransaction(async () => {
+          const transactionData = {
+            ...insertTransaction,
+            amount: parseFloat(insertTransaction.amount),
+            date: new Date(insertTransaction.date)
+          };
+          
+          // Create the transaction
+          const [createdTransaction] = await TransactionModel.create([transactionData], { session });
+          transaction = createdTransaction;
+          
+          // Update account balance based on transaction type
+          const amount = transactionData.amount;
+          const balanceUpdate = transactionData.type === 'income' ? amount : -amount;
+          
+          await AccountModel.findByIdAndUpdate(
+            transactionData.accountId,
+            { $inc: { balance: balanceUpdate } },
+            { session }
+          );
+        });
         
-        // Update account balance based on transaction type
-        const amount = transactionData.amount;
-        const balanceUpdate = transactionData.type === 'income' ? amount : -amount;
+        // Populate the created transaction
+        const populatedTransaction = await TransactionModel.findById(transaction._id)
+          .populate('accountId')
+          .populate('categoryId');
         
-        await AccountModel.findByIdAndUpdate(
-          transactionData.accountId,
-          { $inc: { balance: balanceUpdate } },
-          { session }
-        );
-      });
-      
-      // Populate the created transaction
-      const populatedTransaction = await TransactionModel.findById(transaction._id)
-        .populate('accountId')
-        .populate('categoryId');
-      
-      if (!populatedTransaction) {
-        throw new Error("Failed to create transaction");
+        if (!populatedTransaction) {
+          throw new Error("Failed to create transaction");
+        }
+        
+        return this.transformTransactionWithDetails(populatedTransaction);
+              } catch (error) {
+          // If transactions are not supported (e.g., in-memory MongoDB), fall back to non-transactional approach
+          if (error instanceof Error && error.message && error.message.includes('Transaction numbers are only allowed on a replica set')) {
+          console.log('MongoDB transactions not supported, using fallback approach');
+          
+          const transactionData = {
+            ...insertTransaction,
+            amount: parseFloat(insertTransaction.amount),
+            date: new Date(insertTransaction.date)
+          };
+          
+          // Create the transaction without session
+          const createdTransaction = await TransactionModel.create(transactionData);
+          
+          // Update account balance based on transaction type
+          const amount = transactionData.amount;
+          const balanceUpdate = transactionData.type === 'income' ? amount : -amount;
+          
+          await AccountModel.findByIdAndUpdate(
+            transactionData.accountId,
+            { $inc: { balance: balanceUpdate } }
+          );
+
+          // Populate the created transaction
+          const populatedTransaction = await TransactionModel.findById(createdTransaction._id)
+            .populate('accountId')
+            .populate('categoryId');
+          
+          if (!populatedTransaction) {
+            throw new Error("Failed to create transaction");
+          }
+          
+          return this.transformTransactionWithDetails(populatedTransaction);
+        }
+        
+        throw error;
+      } finally {
+        await session.endSession();
       }
-      
-      return this.transformTransactionWithDetails(populatedTransaction);
     } catch (error) {
-      throw error;
-    } finally {
-      await session.endSession();
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('Unknown error occurred');
     }
   }
 
@@ -1139,6 +1184,18 @@ export class MongoDBStorage implements IStorage {
     .populate('accountId');
 
     return transfers;
+  }
+
+  // Test helper method
+  async clearTestData(): Promise<void> {
+    try {
+      await TransactionModel.deleteMany({});
+      await AccountModel.deleteMany({});
+      await CategoryModel.deleteMany({});
+      // Don't delete users to keep auth token valid
+    } catch (error) {
+      console.error("Error clearing test data:", error);
+    }
   }
 }
 

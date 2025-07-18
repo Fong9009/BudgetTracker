@@ -586,9 +586,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/transactions", authMiddleware, validateRequest(insertTransactionSchema), async (req: AuthenticatedRequest, res) => {
     try {
       const validatedData = req.body;
+      console.log('Creating transaction with data:', validatedData);
       const transaction = await storage.createTransaction(validatedData);
       res.status(201).json(transaction);
     } catch (error) {
+      console.error('Transaction creation error:', error);
       res.status(500).json({ message: "Failed to create transaction" });
     }
   });
