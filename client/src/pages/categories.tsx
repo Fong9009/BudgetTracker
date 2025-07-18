@@ -241,8 +241,7 @@ export default function Categories() {
           <AlertDialogHeader>
             <AlertDialogTitle>Archive Category</AlertDialogTitle>
             <AlertDialogDescription>
-              This will move the category to your archive. You can restore it later from the archived categories page.
-              Note: You cannot archive a category that has active transactions. Please archive or delete those transactions first.
+              This will archive the category and reassign any active transactions to an "Uncategorized" category. You can restore it later from the archived categories page.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

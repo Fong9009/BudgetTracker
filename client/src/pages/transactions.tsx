@@ -57,13 +57,42 @@ export default function Transactions() {
   const [sortOrder, setSortOrder] = useState<string>("desc");
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
 
-  const { data: transactions = [], isLoading } = useQuery<TransactionWithDetails[]>({
-    queryKey: ["/api/transactions"],
+  // Build query parameters for server-side filtering
+  const queryParams = new URLSearchParams();
+  if (searchTerm) queryParams.set('search', searchTerm);
+  if (selectedAccount !== 'all') queryParams.set('accountId', selectedAccount);
+  if (selectedCategory !== 'all') queryParams.set('categoryId', selectedCategory);
+  if (selectedType !== 'all') queryParams.set('type', selectedType);
+  if (selectedTransactionKind !== 'all') queryParams.set('transactionKind', selectedTransactionKind);
+  if (dateFrom) queryParams.set('dateFrom', dateFrom.toISOString());
+  if (dateTo) queryParams.set('dateTo', dateTo.toISOString());
+  if (amountMin) queryParams.set('amountMin', amountMin);
+  if (amountMax) queryParams.set('amountMax', amountMax);
+  queryParams.set('sortBy', sortBy);
+  queryParams.set('sortOrder', sortOrder);
+  queryParams.set('page', currentPage.toString());
+  queryParams.set('limit', pageSize.toString());
+
+  const { data: transactionsData, isLoading } = useQuery<{
+    transactions: TransactionWithDetails[];
+    total: number;
+    totalPages: number;
+    currentPage: number;
+  }>({
+    queryKey: ["/api/transactions", queryParams.toString()],
   });
+
+  const transactions = transactionsData?.transactions || [];
+  const total = transactionsData?.total || 0;
+  const totalPages = transactionsData?.totalPages || 0;
 
   const { data: accounts = [] } = useQuery<Account[]>({
     queryKey: ["/api/accounts"],
@@ -100,106 +129,10 @@ export default function Transactions() {
     },
   });
 
-  // Group transfers and filter/sort all transactions
-  const filteredAndSortedTransactions = useMemo(() => {
-    // First group the transfer transactions
-    const groupedTransactions = groupTransferTransactions(transactions);
-    
-    // Then filter the grouped transactions
-    let filtered = groupedTransactions.filter((item) => {
-      // Text search (description, account name, category name)
-      const searchText = searchTerm.toLowerCase();
-      let matchesSearch = false;
-      
-      if (!searchText) {
-        matchesSearch = true;
-      } else if (item.type === 'transfer') {
-        // For transfers, search in description and both account names
-        matchesSearch = item.description.toLowerCase().includes(searchText) ||
-          item.fromAccount!.name.toLowerCase().includes(searchText) ||
-          item.toAccount!.name.toLowerCase().includes(searchText) ||
-          item.category.name.toLowerCase().includes(searchText);
-      } else {
-        // For regular transactions
-        matchesSearch = item.description.toLowerCase().includes(searchText) ||
-          item.account.name.toLowerCase().includes(searchText) ||
-          item.category.name.toLowerCase().includes(searchText);
-      }
-      
-      // Filter by account - for transfers, match either from or to account
-      let matchesAccount = false;
-      if (selectedAccount === "all") {
-        matchesAccount = true;
-      } else if (item.type === 'transfer') {
-        matchesAccount = item.fromAccount!._id === selectedAccount || item.toAccount!._id === selectedAccount;
-      } else {
-        matchesAccount = item.accountId === selectedAccount;
-      }
-      
-      // Filter by category
-      const matchesCategory = selectedCategory === "all" || item.categoryId === selectedCategory;
-      
-      // Filter by type - only applies to regular transactions (not transfers)
-      const matchesType = selectedType === "all" || 
-        (item.type !== "transfer" && item.type === selectedType);
-      
-      // Filter by transaction kind
-      const matchesKind = selectedTransactionKind === "all" ||
-        (selectedTransactionKind === "transfer" && item.type === "transfer") ||
-        (selectedTransactionKind === "transaction" && item.type !== "transfer");
-      
-      // Filter by date range
-      const transactionDate = new Date(item.date);
-      const matchesDateFrom = !dateFrom || transactionDate >= dateFrom;
-      const matchesDateTo = !dateTo || transactionDate <= dateTo;
-      
-      // Filter by amount range
-      const amount = Math.abs(item.amount);
-      const matchesAmountMin = !amountMin || amount >= parseFloat(amountMin);
-      const matchesAmountMax = !amountMax || amount <= parseFloat(amountMax);
-
-      return matchesSearch && matchesAccount && matchesCategory && matchesType && 
-             matchesKind && matchesDateFrom && matchesDateTo && matchesAmountMin && matchesAmountMax;
-    });
-
-    // Sort transactions
-    filtered.sort((a, b) => {
-      let comparison = 0;
-      
-      switch (sortBy) {
-        case "date":
-          comparison = new Date(a.date).getTime() - new Date(b.date).getTime();
-          break;
-        case "amount":
-          comparison = Math.abs(a.amount) - Math.abs(b.amount);
-          break;
-        case "description":
-          comparison = a.description.localeCompare(b.description);
-          break;
-        case "account":
-          if (a.type === 'transfer' && b.type === 'transfer') {
-            comparison = a.fromAccount!.name.localeCompare(b.fromAccount!.name);
-          } else if (a.type === 'transfer') {
-            comparison = a.fromAccount!.name.localeCompare(b.account.name);
-          } else if (b.type === 'transfer') {
-            comparison = a.account.name.localeCompare(b.fromAccount!.name);
-          } else {
-            comparison = a.account.name.localeCompare(b.account.name);
-          }
-          break;
-        case "category":
-          comparison = a.category.name.localeCompare(b.category.name);
-          break;
-        default:
-          comparison = new Date(a.date).getTime() - new Date(b.date).getTime();
-      }
-      
-      return sortOrder === "asc" ? comparison : -comparison;
-    });
-
-    return filtered;
-  }, [transactions, searchTerm, selectedAccount, selectedCategory, selectedType, 
-      selectedTransactionKind, dateFrom, dateTo, amountMin, amountMax, sortBy, sortOrder]);
+  // Group transfers for display (server-side filtering handles the rest)
+  const groupedTransactions = useMemo(() => {
+    return groupTransferTransactions(transactions);
+  }, [transactions]);
 
   // Debounced search handler
   const handleSearchChange = debounce((value: string) => {
@@ -354,7 +287,7 @@ export default function Transactions() {
                   Filter & Search Transactions
                   {hasActiveFilters && (
                     <Badge variant="secondary" className="ml-2">
-                      {filteredAndSortedTransactions.length} results
+                      {groupedTransactions.length} results
                     </Badge>
                   )}
                 </CardTitle>
@@ -846,7 +779,7 @@ export default function Transactions() {
           <Card className="mt-6">
             <CardHeader>
               <CardTitle>
-                All Transactions ({filteredAndSortedTransactions.length})
+                All Transactions ({groupedTransactions.length})
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -868,7 +801,7 @@ export default function Transactions() {
                     </div>
                   ))}
                 </div>
-              ) : filteredAndSortedTransactions.length === 0 ? (
+              ) : groupedTransactions.length === 0 ? (
                 <div className="text-center py-12">
                   <div className="w-16 h-16 mx-auto bg-muted rounded-full flex items-center justify-center mb-4">
                     <i className="fas fa-receipt text-muted-foreground text-xl" />
@@ -893,7 +826,7 @@ export default function Transactions() {
                 </div>
               ) : (
                 <div className="space-y-0 divide-y divide-border">
-                  {filteredAndSortedTransactions.map((item) => (
+                  {groupedTransactions.map((item) => (
                     <div key={item._id} className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors">
                       <div className="flex items-center flex-1">
                         <div className="flex-shrink-0">

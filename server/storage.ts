@@ -31,6 +31,33 @@ export interface IStorage {
 
   // Transactions
   getTransactions(userId: string): Promise<TransactionWithDetails[]>;
+  getTransactionsWithFilters(
+    userId: string,
+    filters: {
+      search?: string;
+      accountId?: string;
+      categoryId?: string;
+      type?: string;
+      transactionKind?: string;
+      dateFrom?: Date;
+      dateTo?: Date;
+      amountMin?: number;
+      amountMax?: number;
+    },
+    sort: {
+      field: string;
+      order: 'asc' | 'desc';
+    },
+    pagination: {
+      page: number;
+      limit: number;
+    }
+  ): Promise<{
+    transactions: TransactionWithDetails[];
+    total: number;
+    totalPages: number;
+    currentPage: number;
+  }>;
   getTransaction(id: string): Promise<TransactionWithDetails | undefined>;
   getTransactionsByAccount(accountId: string): Promise<TransactionWithDetails[]>;
   getTransactionsByCategory(categoryId: string): Promise<TransactionWithDetails[]>;
@@ -213,18 +240,57 @@ export class MongoDBStorage implements IStorage {
   }
 
   async deleteCategory(id: string): Promise<boolean> {
+    const session = await CategoryModel.startSession();
+    
     try {
-      // Check if category is being used by any non-archived transactions
-      const transactionCount = await TransactionModel.countDocuments({ categoryId: id, isArchived: false });
-      if (transactionCount > 0) {
-        throw new Error(`Cannot archive category: ${transactionCount} active transactions are using this category. Please archive or delete those transactions first.`);
-      }
+      await session.withTransaction(async () => {
+        // Check if category exists
+        const category = await CategoryModel.findById(id).session(session);
+        if (!category) {
+          throw new Error("Category not found");
+        }
+        
+        // Count active transactions using this category
+        const transactionCount = await TransactionModel.countDocuments({ 
+          categoryId: id, 
+          isArchived: false 
+        }).session(session);
+        
+        if (transactionCount > 0) {
+          // Create or find a "Uncategorized" category for reassignment
+          let uncategorizedCategory = await CategoryModel.findOne({ 
+            name: "Uncategorized", 
+            userId: category.userId 
+          }).session(session);
+          
+          if (!uncategorizedCategory) {
+            const [newCategory] = await CategoryModel.create([{
+              name: "Uncategorized",
+              color: "#6b7280", // Gray color
+              icon: "fas fa-question",
+              userId: category.userId
+            }], { session });
+            uncategorizedCategory = newCategory;
+          }
+          
+          // Reassign all active transactions to the "Uncategorized" category
+          await TransactionModel.updateMany(
+            { categoryId: id, isArchived: false },
+            { categoryId: uncategorizedCategory._id },
+            { session }
+          );
+        }
+        
+        // Archive the category
+        await CategoryModel.findByIdAndUpdate(id, { isArchived: true }, { session });
+      });
       
-      const result = await CategoryModel.findByIdAndUpdate(id, { isArchived: true }, { new: true });
-      return !!result;
+      return true;
     } catch (error) {
       console.error("Error archiving category:", error);
       throw error;
+    } finally {
+      await session.endSession();
     }
   }
 
@@ -272,6 +338,162 @@ export class MongoDBStorage implements IStorage {
     return userTransactions.map(tx => this.transformTransactionWithDetails(tx));
   }
 
+  async getTransactionsWithFilters(
+    userId: string,
+    filters: {
+      search?: string;
+      accountId?: string;
+      categoryId?: string;
+      type?: string;
+      transactionKind?: string;
+      dateFrom?: Date;
+      dateTo?: Date;
+      amountMin?: number;
+      amountMax?: number;
+    },
+    sort: {
+      field: string;
+      order: 'asc' | 'desc';
+    },
+    pagination: {
+      page: number;
+      limit: number;
+    }
+  ): Promise<{
+    transactions: TransactionWithDetails[];
+    total: number;
+    totalPages: number;
+    currentPage: number;
+  }> {
+    // Build the base query - transactions that belong to user's accounts
+    const baseQuery: any = { 
+      isArchived: { $ne: true },
+      $or: [
+        // Regular transactions where account belongs to user
+        {
+          accountId: { $in: await AccountModel.find({ userId }).distinct('_id') }
+        },
+        // Transfer transactions where either from or to account belongs to user
+        {
+          $and: [
+            { description: { $regex: /^Transfer (to|from) / } },
+            {
+              $or: [
+                { accountId: { $in: await AccountModel.find({ userId }).distinct('_id') } },
+                // For transfers, we need to check if the other account in the transfer belongs to user
+                // This is more complex and might require additional logic
+              ]
+            }
+          ]
+        }
+      ]
+    };
+
+    // Add search filter
+    if (filters.search) {
+      baseQuery.$and = baseQuery.$and || [];
+      baseQuery.$and.push({
+        $or: [
+          { description: { $regex: filters.search, $options: 'i' } },
+          { type: { $regex: filters.search, $options: 'i' } }
+        ]
+      });
+    }
+
+    // Add account filter
+    if (filters.accountId && filters.accountId !== 'all') {
+      baseQuery.accountId = filters.accountId;
+    }
+
+    // Add category filter
+    if (filters.categoryId && filters.categoryId !== 'all') {
+      baseQuery.categoryId = filters.categoryId;
+    }
+
+    // Add type filter
+    if (filters.type && filters.type !== 'all') {
+      baseQuery.type = filters.type;
+    }
+
+    // Add transaction kind filter (transfer vs regular transaction)
+    if (filters.transactionKind && filters.transactionKind !== 'all') {
+      if (filters.transactionKind === 'transfer') {
+        baseQuery.description = { $regex: /^Transfer (to|from) / };
+      } else if (filters.transactionKind === 'transaction') {
+        baseQuery.description = { $not: /^Transfer (to|from) / };
+      }
+    }
+
+    // Add date range filter
+    if (filters.dateFrom || filters.dateTo) {
+      baseQuery.date = {};
+      if (filters.dateFrom) {
+        baseQuery.date.$gte = filters.dateFrom;
+      }
+      if (filters.dateTo) {
+        baseQuery.date.$lte = filters.dateTo;
+      }
+    }
+
+    // Add amount range filter
+    if (filters.amountMin !== undefined || filters.amountMax !== undefined) {
+      baseQuery.amount = {};
+      if (filters.amountMin !== undefined) {
+        baseQuery.amount.$gte = filters.amountMin;
+      }
+      if (filters.amountMax !== undefined) {
+        baseQuery.amount.$lte = filters.amountMax;
+      }
+    }
+
+    // Get total count for pagination
+    const total = await TransactionModel.countDocuments(baseQuery);
+    const totalPages = Math.ceil(total / pagination.limit);
+    const currentPage = Math.min(pagination.page, totalPages);
+
+    // Build sort object
+    const sortObj: any = {};
+    let sortField = sort.field;
+    
+    // Map frontend sort fields to database fields
+    switch (sort.field) {
+      case 'account':
+        sortField = 'accountId';
+        break;
+      case 'category':
+        sortField = 'categoryId';
+        break;
+      default:
+        sortField = sort.field;
+    }
+    
+    sortObj[sortField] = sort.order === 'asc' ? 1 : -1;
+
+    // Fetch transactions with pagination
+    const transactions = await TransactionModel.find(baseQuery)
+      .populate({
+        path: 'accountId',
+        match: { userId }
+      })
+      .populate({
+        path: 'categoryId',
+        match: { userId }
+      })
+      .sort(sortObj)
+      .skip((currentPage - 1) * pagination.limit)
+      .limit(pagination.limit);
+
+    // Filter out transactions where account or category doesn't belong to user
+    const userTransactions = transactions.filter(tx => tx.accountId && tx.categoryId);
+
+    return {
+      transactions: userTransactions.map(tx => this.transformTransactionWithDetails(tx)),
+      total,
+      totalPages,
+      currentPage
+    };
+  }
+
   async getTransaction(id: string): Promise<TransactionWithDetails | undefined> {
     const transaction = await TransactionModel.findById(id)
       .populate('accountId')
@@ -299,40 +521,102 @@ export class MongoDBStorage implements IStorage {
   }
 
   async createTransaction(insertTransaction: InsertTransaction): Promise<TransactionWithDetails> {
-    const transactionData = {
-      ...insertTransaction,
-      amount: parseFloat(insertTransaction.amount),
-      date: new Date(insertTransaction.date)
-    };
+    const session = await TransactionModel.startSession();
     
-    const transaction = await TransactionModel.create(transactionData);
-    
-    // Populate the created transaction
-    const populatedTransaction = await TransactionModel.findById(transaction._id)
-      .populate('accountId')
-      .populate('categoryId');
-    
-    if (!populatedTransaction) {
-      throw new Error("Failed to create transaction");
+    try {
+      let transaction: any;
+      
+      await session.withTransaction(async () => {
+        const transactionData = {
+          ...insertTransaction,
+          amount: parseFloat(insertTransaction.amount),
+          date: new Date(insertTransaction.date)
+        };
+        
+        // Create the transaction
+        const [createdTransaction] = await TransactionModel.create([transactionData], { session });
+        transaction = createdTransaction;
+        
+        // Update account balance based on transaction type
+        const amount = transactionData.amount;
+        const balanceUpdate = transactionData.type === 'income' ? amount : -amount;
+        
+        await AccountModel.findByIdAndUpdate(
+          transactionData.accountId,
+          { $inc: { balance: balanceUpdate } },
+          { session }
+        );
+      });
+      
+      // Populate the created transaction
+      const populatedTransaction = await TransactionModel.findById(transaction._id)
+        .populate('accountId')
+        .populate('categoryId');
+      
+      if (!populatedTransaction) {
+        throw new Error("Failed to create transaction");
+      }
+      
+      return this.transformTransactionWithDetails(populatedTransaction);
+    } catch (error) {
+      throw error;
+    } finally {
+      await session.endSession();
     }
-    
-    return this.transformTransactionWithDetails(populatedTransaction);
   }
 
   async updateTransaction(id: string, updates: Partial<InsertTransaction>): Promise<TransactionWithDetails | undefined> {
-    const updateData = { ...updates };
-    if (updateData.amount) {
-      (updateData as any).amount = parseFloat(updateData.amount);
-    }
-    if (updateData.date) {
-      (updateData as any).date = new Date(updateData.date);
-    }
+    const session = await TransactionModel.startSession();
     
-    const transaction = await TransactionModel.findByIdAndUpdate(id, updateData, { new: true })
-      .populate('accountId')
-      .populate('categoryId');
-    
-    return transaction ? this.transformTransactionWithDetails(transaction) : undefined;
+    try {
+      let updatedTransaction: any;
+      
+      await session.withTransaction(async () => {
+        // Get the original transaction to calculate balance changes
+        const originalTransaction = await TransactionModel.findById(id).session(session);
+        if (!originalTransaction) {
+          throw new Error("Transaction not found");
+        }
+        
+        const updateData = { ...updates };
+        if (updateData.amount) {
+          (updateData as any).amount = parseFloat(updateData.amount);
+        }
+        if (updateData.date) {
+          (updateData as any).date = new Date(updateData.date);
+        }
+        
+        // Calculate balance changes if amount or type changed
+        let balanceChange = 0;
+        const newAmount = updateData.amount !== undefined ? parseFloat(updateData.amount.toString()) : originalTransaction.amount;
+        const newType = updateData.type !== undefined ? updateData.type : originalTransaction.type;
+        
+        // Calculate the difference in balance impact
+        const originalBalanceImpact = originalTransaction.type === 'income' ? originalTransaction.amount : -originalTransaction.amount;
+        const newBalanceImpact = newType === 'income' ? newAmount : -newAmount;
+        balanceChange = newBalanceImpact - originalBalanceImpact;
+        
+        // Update the transaction
+        updatedTransaction = await TransactionModel.findByIdAndUpdate(id, updateData, { new: true, session })
+          .populate('accountId')
+          .populate('categoryId');
+        
+        // Update account balance if there's a change
+        if (balanceChange !== 0) {
+          await AccountModel.findByIdAndUpdate(
+            originalTransaction.accountId,
+            { $inc: { balance: balanceChange } },
+            { session }
+          );
+        }
+      });
+      
+      return updatedTransaction ? this.transformTransactionWithDetails(updatedTransaction) : undefined;
+    } catch (error) {
+      throw error;
+    } finally {
+      await session.endSession();
+    }
   }
 
   async deleteTransaction(id: string): Promise<boolean> {
@@ -429,8 +713,19 @@ export class MongoDBStorage implements IStorage {
             }
           }
         } else {
-          // Regular transaction - just archive it
+          // Regular transaction - archive it and revert account balance
           await TransactionModel.findByIdAndUpdate(transaction._id, { isArchived: true }, { session });
+          
+          // Revert account balance based on transaction type
+          const amount = transaction.amount;
+          const balanceUpdate = transaction.type === 'income' ? -amount : amount; // Reverse the original effect
+          
+          await AccountModel.findByIdAndUpdate(
+            transaction.accountId,
+            { $inc: { balance: balanceUpdate } },
+            { session }
+          );
+          
           deletedCount = 1;
         }
       });
@@ -550,8 +845,19 @@ export class MongoDBStorage implements IStorage {
             }
           }
         } else {
-          // Regular transaction - just restore it
+          // Regular transaction - restore it and reapply account balance
           await TransactionModel.findByIdAndUpdate(transaction._id, { isArchived: false }, { session });
+          
+          // Reapply account balance based on transaction type
+          const amount = transaction.amount;
+          const balanceUpdate = transaction.type === 'income' ? amount : -amount; // Reapply the original effect
+          
+          await AccountModel.findByIdAndUpdate(
+            transaction.accountId,
+            { $inc: { balance: balanceUpdate } },
+            { session }
+          );
+          
           restoredCount = 1;
         }
       });

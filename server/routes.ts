@@ -520,9 +520,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Transaction routes (protected)
   app.get("/api/transactions", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {
-      const transactions = await storage.getTransactions(req.user!._id);
-      res.json(transactions);
+      // Parse query parameters
+      const {
+        search,
+        accountId,
+        categoryId,
+        type,
+        transactionKind,
+        dateFrom,
+        dateTo,
+        amountMin,
+        amountMax,
+        sortBy = 'date',
+        sortOrder = 'desc',
+        page = '1',
+        limit = '50'
+      } = req.query;
+
+      // Parse pagination
+      const pageNum = parseInt(page as string) || 1;
+      const limitNum = Math.min(parseInt(limit as string) || 50, 100); // Max 100 per page
+
+      // Parse filters
+      const filters = {
+        search: search as string,
+        accountId: accountId as string,
+        categoryId: categoryId as string,
+        type: type as string,
+        transactionKind: transactionKind as string,
+        dateFrom: dateFrom ? new Date(dateFrom as string) : undefined,
+        dateTo: dateTo ? new Date(dateTo as string) : undefined,
+        amountMin: amountMin ? parseFloat(amountMin as string) : undefined,
+        amountMax: amountMax ? parseFloat(amountMax as string) : undefined,
+      };
+
+      // Parse sort
+      const sort = {
+        field: sortBy as string,
+        order: (sortOrder as string) === 'asc' ? 'asc' : 'desc' as 'asc' | 'desc'
+      };
+
+      // Parse pagination
+      const pagination = {
+        page: pageNum,
+        limit: limitNum
+      };
+
+      const result = await storage.getTransactionsWithFilters(
+        req.user!._id,
+        filters,
+        sort,
+        pagination
+      );
+
+      res.json(result);
     } catch (error) {
+      console.error("Error fetching transactions:", error);
       res.status(500).json({ message: "Failed to fetch transactions" });
     }
   });
