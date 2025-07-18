@@ -18,7 +18,7 @@ import {
   transactionFiltersSchema,
   paginationSchema
 } from "@shared/schema";
-import { authMiddleware, generateToken, comparePassword, hashPassword, type AuthenticatedRequest } from "./auth";
+import { authMiddleware, generateTokenPair, comparePassword, hashPassword, refreshTokenMiddleware, logoutMiddleware, type AuthenticatedRequest } from "./auth";
 import { validateRequest, validateQuery, validateRequestAndQuery, handleValidationError } from "./validation";
 import { z } from "zod";
 import { sendEmail } from "./mail";
@@ -37,11 +37,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const user = await storage.createUser(validatedData);
-      const token = generateToken(user._id);
+      const tokenPair = generateTokenPair(user._id);
       
       res.status(201).json({
         message: "User created successfully",
-        token,
+        accessToken: tokenPair.accessToken,
+        refreshToken: tokenPair.refreshToken,
+        expiresIn: 15 * 60, // 15 minutes in seconds
         user: {
           id: user._id,
           username: user.username,
@@ -67,11 +69,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Invalid email or password" });
       }
       
-      const token = generateToken(user._id);
+      const tokenPair = generateTokenPair(user._id);
       
       res.json({
         message: "Login successful",
-        token,
+        accessToken: tokenPair.accessToken,
+        refreshToken: tokenPair.refreshToken,
+        expiresIn: 15 * 60, // 15 minutes in seconds
         user: {
           id: user._id,
           username: user.username,
@@ -88,6 +92,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       user: req.user
     });
   });
+
+  app.post("/api/auth/refresh", refreshTokenMiddleware);
+
+  app.post("/api/auth/logout", authMiddleware, logoutMiddleware);
 
   app.put("/api/auth/profile", authMiddleware, validateRequest(updateProfileSchema), async (req: AuthenticatedRequest, res) => {
     try {

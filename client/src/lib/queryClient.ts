@@ -25,7 +25,17 @@ export async function apiRequest(
   data?: any,
   options: RequestInit = {}
 ): Promise<any> {
-  const token = localStorage.getItem("token");
+  const authData = localStorage.getItem("auth");
+  let token = null;
+  
+  if (authData) {
+    try {
+      const parsed = JSON.parse(authData);
+      token = parsed.tokens?.accessToken;
+    } catch (error) {
+      console.error('Error parsing auth data:', error);
+    }
+  }
   
   const res = await fetch(url, {
     method,
@@ -56,7 +66,17 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const token = localStorage.getItem("token");
+    const authData = localStorage.getItem("auth");
+    let token = null;
+    
+    if (authData) {
+      try {
+        const parsed = JSON.parse(authData);
+        token = parsed.tokens?.accessToken;
+      } catch (error) {
+        console.error('Error parsing auth data:', error);
+      }
+    }
     
     const res = await fetch(queryKey[0] as string, {
       method: "GET",

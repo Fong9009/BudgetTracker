@@ -1,5 +1,7 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from "@/components/ui/toaster";
+import { PWAInstallPrompt } from './components/ui/pwa-install-prompt';
+import { OfflineIndicator } from './components/ui/offline-indicator';
 import { queryClient } from '@/lib/queryClient';
 import { useLocation, Switch, Route, Redirect } from 'wouter';
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
@@ -107,8 +109,10 @@ function AppWrapper() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <App />
+        <PWAInstallPrompt />
+        <OfflineIndicator />
       </AuthProvider>
-        <Toaster />
+      <Toaster />
     </QueryClientProvider>
   );
 }

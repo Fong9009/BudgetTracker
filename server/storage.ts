@@ -1,5 +1,6 @@
 import { UserModel, AccountModel, CategoryModel, TransactionModel, type User, type Account, type Category, type Transaction, type TransactionWithDetails, type RegisterUser, type InsertAccount, type InsertCategory, type InsertTransaction, type Transfer } from "@shared/schema";
 import { hashPassword } from "./auth";
+import { EncryptionService } from "./encryption";
 
 export interface IStorage {
   // Users
@@ -80,16 +81,29 @@ export class MongoDBStorage implements IStorage {
   // User methods
   async createUser(userData: RegisterUser): Promise<User> {
     const hashedPassword = await hashPassword(userData.password);
-    const user = await UserModel.create({
+    
+    // Encrypt sensitive data before saving
+    const encryptedUserData = EncryptionService.encryptObject({
       ...userData,
       password: hashedPassword
-    });
+    }, ['email']);
+    
+    const user = await UserModel.create(encryptedUserData);
     return this.transformUser(user);
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
-    const user = await UserModel.findOne({ email });
-    return user ? this.transformUser(user) : undefined;
+    // Since email is encrypted, we need to search differently
+    // For now, we'll get all users and decrypt to find the match
+    // In production, consider using a hash of the email for searching
+    const users = await UserModel.find({});
+    for (const user of users) {
+      const decryptedUser = EncryptionService.decryptObject(user.toObject(), ['email']);
+      if (decryptedUser.email === email) {
+        return this.transformUser(user);
+      }
+    }
+    return undefined;
   }
 
   async getUserById(id: string): Promise<User | undefined> {
@@ -132,6 +146,11 @@ export class MongoDBStorage implements IStorage {
       updatePayload.$set = {};
     }
     updatePayload.$set.updatedAt = new Date();
+
+    // Encrypt sensitive fields if they're being updated
+    if (updatePayload.$set.email) {
+      updatePayload.$set.email = EncryptionService.encrypt(updatePayload.$set.email);
+    }
 
     const user = await UserModel.findByIdAndUpdate(
       id, 
@@ -1003,13 +1022,16 @@ export class MongoDBStorage implements IStorage {
 
   // Helper methods to transform MongoDB documents to our interface types
   private transformUser(doc: any): User {
+    // Decrypt sensitive fields if they're encrypted
+    const decryptedDoc = EncryptionService.decryptObject(doc.toObject(), ['email']);
+    
     return {
-      _id: doc._id.toString(),
-      username: doc.username,
-      email: doc.email,
-      password: doc.password,
-      createdAt: doc.createdAt,
-      updatedAt: doc.updatedAt
+      _id: decryptedDoc._id.toString(),
+      username: decryptedDoc.username,
+      email: decryptedDoc.email,
+      password: decryptedDoc.password,
+      createdAt: decryptedDoc.createdAt,
+      updatedAt: decryptedDoc.updatedAt
     };
   }
 
