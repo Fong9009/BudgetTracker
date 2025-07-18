@@ -268,6 +268,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Account archive routes (must be before parameterized routes)
+  app.get("/api/accounts/archived", authMiddleware, async (req: AuthenticatedRequest, res) => {
+    try {
+      const archivedAccounts = await storage.getArchivedAccounts(req.user!._id);
+      res.json(archivedAccounts);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch archived accounts" });
+    }
+  });
+
   app.get("/api/accounts/:id", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {
       const id = req.params.id;
@@ -319,8 +329,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Account not found" });
       }
       res.status(204).send();
-    } catch (error) {
-      res.status(500).json({ message: "Failed to delete account" });
+    } catch (error: any) {
+      console.error("Archive account error:", error);
+      if (error.message && error.message.includes("Cannot archive account")) {
+        return res.status(400).json({ message: error.message });
+      }
+      res.status(500).json({ message: "Failed to archive account" });
     }
   });
 
@@ -340,6 +354,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(categories);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch categories" });
+    }
+  });
+
+  // Category archive routes (must be before parameterized routes)
+  app.get("/api/categories/archived", authMiddleware, async (req: AuthenticatedRequest, res) => {
+    try {
+      const archivedCategories = await storage.getArchivedCategories(req.user!._id);
+      res.json(archivedCategories);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch archived categories" });
     }
   });
 
@@ -395,11 +419,101 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       res.status(204).send();
     } catch (error: any) {
-      console.error("Delete category error:", error);
-      if (error.message && error.message.includes("Cannot delete category")) {
+      console.error("Archive category error:", error);
+      if (error.message && error.message.includes("Cannot archive category")) {
         return res.status(400).json({ message: error.message });
       }
-      res.status(500).json({ message: "Failed to delete category" });
+      res.status(500).json({ message: "Failed to archive category" });
+    }
+  });
+
+  // Archive routes (protected)
+  // Account archive routes (restore and permanent delete)
+  app.post("/api/accounts/:id/restore", authMiddleware, async (req: AuthenticatedRequest, res) => {
+    try {
+      const id = req.params.id;
+      const restored = await storage.restoreAccount(id);
+      if (!restored) {
+        return res.status(404).json({ message: "Account not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to restore account" });
+    }
+  });
+
+  app.delete("/api/accounts/:id/permanent", authMiddleware, async (req: AuthenticatedRequest, res) => {
+    try {
+      const id = req.params.id;
+      const deleted = await storage.permanentDeleteAccount(id);
+      if (!deleted) {
+        return res.status(404).json({ message: "Account not found" });
+      }
+      res.status(204).send();
+    } catch (error: any) {
+      console.error("Permanent delete account error:", error);
+      if (error.message && error.message.includes("Cannot permanently delete account")) {
+        return res.status(400).json({ message: error.message });
+      }
+      res.status(500).json({ message: "Failed to permanently delete account" });
+    }
+  });
+
+  // Category archive routes (restore and permanent delete)
+  app.post("/api/categories/:id/restore", authMiddleware, async (req: AuthenticatedRequest, res) => {
+    try {
+      const id = req.params.id;
+      const restored = await storage.restoreCategory(id);
+      if (!restored) {
+        return res.status(404).json({ message: "Category not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to restore category" });
+    }
+  });
+
+  app.delete("/api/categories/:id/permanent", authMiddleware, async (req: AuthenticatedRequest, res) => {
+    try {
+      const id = req.params.id;
+      const deleted = await storage.permanentDeleteCategory(id);
+      if (!deleted) {
+        return res.status(404).json({ message: "Category not found" });
+      }
+      res.status(204).send();
+    } catch (error: any) {
+      console.error("Permanent delete category error:", error);
+      if (error.message && error.message.includes("Cannot permanently delete category")) {
+        return res.status(400).json({ message: error.message });
+      }
+      res.status(500).json({ message: "Failed to permanently delete category" });
+    }
+  });
+
+  // Transaction archive routes (restore and permanent delete)
+  app.post("/api/transactions/:id/restore", authMiddleware, async (req: AuthenticatedRequest, res) => {
+    try {
+      const id = req.params.id;
+      const restored = await storage.restoreTransaction(id);
+      if (!restored) {
+        return res.status(404).json({ message: "Transaction not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to restore transaction" });
+    }
+  });
+
+  app.delete("/api/transactions/:id/permanent", authMiddleware, async (req: AuthenticatedRequest, res) => {
+    try {
+      const id = req.params.id;
+      const deleted = await storage.permanentDeleteTransaction(id);
+      if (!deleted) {
+        return res.status(404).json({ message: "Transaction not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to permanently delete transaction" });
     }
   });
 
@@ -410,6 +524,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(transactions);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch transactions" });
+    }
+  });
+
+  // Transaction archive routes (must be before parameterized routes)
+  app.get("/api/transactions/archived", authMiddleware, async (req: AuthenticatedRequest, res) => {
+    try {
+      const archivedTransactions = await storage.getArchivedTransactions(req.user!._id);
+      res.json(archivedTransactions);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch archived transactions" });
     }
   });
 

@@ -15,6 +15,9 @@ export interface IStorage {
   createAccount(account: InsertAccount, userId: string): Promise<Account>;
   updateAccount(id: string, account: Partial<InsertAccount>): Promise<Account | undefined>;
   deleteAccount(id: string): Promise<boolean>;
+  getArchivedAccounts(userId: string): Promise<Account[]>;
+  restoreAccount(id: string): Promise<boolean>;
+  permanentDeleteAccount(id: string): Promise<boolean>;
 
   // Categories
   getCategories(userId: string): Promise<Category[]>;
@@ -22,6 +25,9 @@ export interface IStorage {
   createCategory(category: InsertCategory, userId: string): Promise<Category>;
   updateCategory(id: string, category: Partial<InsertCategory>): Promise<Category | undefined>;
   deleteCategory(id: string): Promise<boolean>;
+  getArchivedCategories(userId: string): Promise<Category[]>;
+  restoreCategory(id: string): Promise<boolean>;
+  permanentDeleteCategory(id: string): Promise<boolean>;
 
   // Transactions
   getTransactions(userId: string): Promise<TransactionWithDetails[]>;
@@ -31,6 +37,9 @@ export interface IStorage {
   createTransaction(transaction: InsertTransaction): Promise<TransactionWithDetails>;
   updateTransaction(id: string, transaction: Partial<InsertTransaction>): Promise<TransactionWithDetails | undefined>;
   deleteTransaction(id: string): Promise<boolean>;
+  getArchivedTransactions(userId: string): Promise<TransactionWithDetails[]>;
+  restoreTransaction(id: string): Promise<boolean>;
+  permanentDeleteTransaction(id: string): Promise<boolean>;
 
   // Transfers
   createTransfer(transfer: Transfer, userId: string): Promise<{ fromTransaction: TransactionWithDetails; toTransaction: TransactionWithDetails }>;
@@ -107,7 +116,7 @@ export class MongoDBStorage implements IStorage {
 
   // Account methods
   async getAccounts(userId: string): Promise<Account[]> {
-    const accounts = await AccountModel.find({ userId }).sort({ createdAt: -1 });
+    const accounts = await AccountModel.find({ userId, isArchived: { $ne: true } }).sort({ createdAt: -1 });
     return accounts.map(acc => this.transformAccount(acc));
   }
 
@@ -137,13 +146,50 @@ export class MongoDBStorage implements IStorage {
   }
 
   async deleteAccount(id: string): Promise<boolean> {
-    const result = await AccountModel.findByIdAndDelete(id);
+    try {
+      // Check if account is being used by any non-archived transactions
+      const transactionCount = await TransactionModel.countDocuments({ accountId: id, isArchived: false });
+      if (transactionCount > 0) {
+        throw new Error(`Cannot archive account: ${transactionCount} active transactions are associated with this account. Please archive or delete those transactions first.`);
+      }
+      
+      const result = await AccountModel.findByIdAndUpdate(id, { isArchived: true }, { new: true });
+      return !!result;
+    } catch (error) {
+      console.error("Error archiving account:", error);
+      throw error;
+    }
+  }
+
+  async getArchivedAccounts(userId: string): Promise<Account[]> {
+    const accounts = await AccountModel.find({ userId, isArchived: true });
+    return accounts.map(acc => this.transformAccount(acc));
+  }
+
+  async restoreAccount(id: string): Promise<boolean> {
+    const result = await AccountModel.findByIdAndUpdate(id, { isArchived: false }, { new: true });
     return !!result;
+  }
+
+  async permanentDeleteAccount(id: string): Promise<boolean> {
+    try {
+      // Check if account is being used by any transactions (both active and archived)
+      const transactionCount = await TransactionModel.countDocuments({ accountId: id });
+      if (transactionCount > 0) {
+        throw new Error(`Cannot permanently delete account: ${transactionCount} transactions are associated with this account. Please permanently delete all associated transactions first.`);
+      }
+      
+      const result = await AccountModel.findByIdAndDelete(id);
+      return !!result;
+    } catch (error) {
+      console.error("Error permanently deleting account:", error);
+      throw error;
+    }
   }
 
   // Category methods
   async getCategories(userId: string): Promise<Category[]> {
-    const categories = await CategoryModel.find({ userId }).sort({ createdAt: -1 });
+    const categories = await CategoryModel.find({ userId, isArchived: { $ne: true } }).sort({ createdAt: -1 });
     return categories.map(cat => this.transformCategory(cat));
   }
 
@@ -168,23 +214,49 @@ export class MongoDBStorage implements IStorage {
 
   async deleteCategory(id: string): Promise<boolean> {
     try {
-      // Check if category is being used by any transactions
+      // Check if category is being used by any non-archived transactions
+      const transactionCount = await TransactionModel.countDocuments({ categoryId: id, isArchived: false });
+      if (transactionCount > 0) {
+        throw new Error(`Cannot archive category: ${transactionCount} active transactions are using this category. Please archive or delete those transactions first.`);
+      }
+      
+      const result = await CategoryModel.findByIdAndUpdate(id, { isArchived: true }, { new: true });
+      return !!result;
+    } catch (error) {
+      console.error("Error archiving category:", error);
+      throw error;
+    }
+  }
+
+  async getArchivedCategories(userId: string): Promise<Category[]> {
+    const categories = await CategoryModel.find({ userId, isArchived: true });
+    return categories.map(cat => this.transformCategory(cat));
+  }
+
+  async restoreCategory(id: string): Promise<boolean> {
+    const result = await CategoryModel.findByIdAndUpdate(id, { isArchived: false }, { new: true });
+    return !!result;
+  }
+
+  async permanentDeleteCategory(id: string): Promise<boolean> {
+    try {
+      // Check if category is being used by any transactions (both active and archived)
       const transactionCount = await TransactionModel.countDocuments({ categoryId: id });
       if (transactionCount > 0) {
-        throw new Error(`Cannot delete category: ${transactionCount} transactions are using this category`);
+        throw new Error(`Cannot permanently delete category: ${transactionCount} transactions are associated with this category. Please permanently delete all associated transactions first.`);
       }
       
       const result = await CategoryModel.findByIdAndDelete(id);
       return !!result;
     } catch (error) {
-      console.error("Error deleting category:", error);
+      console.error("Error permanently deleting category:", error);
       throw error;
     }
   }
 
   // Transaction methods
   async getTransactions(userId: string): Promise<TransactionWithDetails[]> {
-    const transactions = await TransactionModel.find()
+    const transactions = await TransactionModel.find({ isArchived: { $ne: true } })
       .populate({
         path: 'accountId',
         match: { userId }
@@ -281,7 +353,7 @@ export class MongoDBStorage implements IStorage {
                           transaction.description.startsWith('Transfer from ');
         
         if (isTransfer) {
-          // For transfers, we need to delete both transactions and revert account balances
+          // For transfers, we need to archive both transactions and revert account balances
           const amount = transaction.amount;
           const isFromTransaction = transaction.description.startsWith('Transfer to ');
           
@@ -299,9 +371,9 @@ export class MongoDBStorage implements IStorage {
               }).session(session);
               
               if (toTransaction) {
-                // Delete both transactions
-                await TransactionModel.findByIdAndDelete(transaction._id).session(session);
-                await TransactionModel.findByIdAndDelete(toTransaction._id).session(session);
+                // Archive both transactions
+                await TransactionModel.findByIdAndUpdate(transaction._id, { isArchived: true }, { session });
+                await TransactionModel.findByIdAndUpdate(toTransaction._id, { isArchived: true }, { session });
                 
                 // Revert account balances
                 await Promise.all([
@@ -313,6 +385,224 @@ export class MongoDBStorage implements IStorage {
                   }, { session })
                 ]);
                 
+                deletedCount = 2;
+              } else {
+                // Only archive this transaction if we can't find the pair
+                await TransactionModel.findByIdAndUpdate(transaction._id, { isArchived: true }, { session });
+                deletedCount = 1;
+              }
+            }
+          } else {
+            // This is the "to" transaction (income)
+            // Find the corresponding "from" transaction (expense)
+            const transferInfo = transaction.description.match(/^Transfer from ([^:]+): (.+)$/);
+            if (transferInfo) {
+              const [, fromAccountName, userDescription] = transferInfo;
+              const fromTransaction = await TransactionModel.findOne({
+                amount: amount,
+                type: 'expense',
+                description: { $regex: `^Transfer to .+: ${userDescription.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$` },
+                date: transaction.date
+              }).session(session);
+              
+              if (fromTransaction) {
+                // Archive both transactions
+                await TransactionModel.findByIdAndUpdate(transaction._id, { isArchived: true }, { session });
+                await TransactionModel.findByIdAndUpdate(fromTransaction._id, { isArchived: true }, { session });
+                
+                // Revert account balances
+                await Promise.all([
+                  AccountModel.findByIdAndUpdate(fromTransaction.accountId, { 
+                    $inc: { balance: amount } // Add back the amount that was subtracted
+                  }, { session }),
+                  AccountModel.findByIdAndUpdate(transaction.accountId, { 
+                    $inc: { balance: -amount } // Subtract the amount that was added
+                  }, { session })
+                ]);
+                
+                deletedCount = 2;
+              } else {
+                // Only archive this transaction if we can't find the pair
+                await TransactionModel.findByIdAndUpdate(transaction._id, { isArchived: true }, { session });
+                deletedCount = 1;
+              }
+            }
+          }
+        } else {
+          // Regular transaction - just archive it
+          await TransactionModel.findByIdAndUpdate(transaction._id, { isArchived: true }, { session });
+          deletedCount = 1;
+        }
+      });
+      
+      return deletedCount > 0;
+    } catch (error) {
+      throw error;
+    } finally {
+      await session.endSession();
+    }
+  }
+
+  async getArchivedTransactions(userId: string): Promise<TransactionWithDetails[]> {
+    const transactions = await TransactionModel.find({ isArchived: true })
+      .populate({
+        path: 'accountId',
+        match: { userId }
+      })
+      .populate('categoryId')
+      .sort({ date: -1 });
+    
+    return transactions
+      .filter(t => t.accountId) // Filter out transactions with null accountId (due to populate match)
+      .map(t => this.transformTransactionWithDetails(t));
+  }
+
+  async restoreTransaction(id: string): Promise<boolean> {
+    const session = await TransactionModel.startSession();
+    
+    try {
+      let restoredCount = 0;
+      
+      await session.withTransaction(async () => {
+        // Find the transaction to restore
+        const transaction = await TransactionModel.findById(id).session(session);
+        if (!transaction) {
+          return;
+        }
+        
+        // Check if this is a transfer transaction
+        const isTransfer = transaction.description.startsWith('Transfer to ') || 
+                          transaction.description.startsWith('Transfer from ');
+        
+        if (isTransfer) {
+          // For transfers, we need to restore both transactions and reapply account balances
+          const amount = transaction.amount;
+          const isFromTransaction = transaction.description.startsWith('Transfer to ');
+          
+          if (isFromTransaction) {
+            // This is the "from" transaction (expense)
+            // Find the corresponding "to" transaction (income)
+            const transferInfo = transaction.description.match(/^Transfer to ([^:]+): (.+)$/);
+            if (transferInfo) {
+              const [, toAccountName, userDescription] = transferInfo;
+              const toTransaction = await TransactionModel.findOne({
+                amount: amount,
+                type: 'income',
+                description: { $regex: `^Transfer from .+: ${userDescription.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$` },
+                date: transaction.date
+              }).session(session);
+              
+              if (toTransaction) {
+                // Restore both transactions
+                await TransactionModel.findByIdAndUpdate(transaction._id, { isArchived: false }, { session });
+                await TransactionModel.findByIdAndUpdate(toTransaction._id, { isArchived: false }, { session });
+                
+                // Reapply account balances
+                await Promise.all([
+                  AccountModel.findByIdAndUpdate(transaction.accountId, { 
+                    $inc: { balance: -amount } // Subtract the amount again
+                  }, { session }),
+                  AccountModel.findByIdAndUpdate(toTransaction.accountId, { 
+                    $inc: { balance: amount } // Add the amount again
+                  }, { session })
+                ]);
+                
+                restoredCount = 2;
+              } else {
+                // Only restore this transaction if we can't find the pair
+                await TransactionModel.findByIdAndUpdate(transaction._id, { isArchived: false }, { session });
+                restoredCount = 1;
+              }
+            }
+          } else {
+            // This is the "to" transaction (income) - find the corresponding "from" transaction
+            const transferInfo = transaction.description.match(/^Transfer from ([^:]+): (.+)$/);
+            if (transferInfo) {
+              const [, fromAccountName, userDescription] = transferInfo;
+              const fromTransaction = await TransactionModel.findOne({
+                amount: amount,
+                type: 'expense',
+                description: { $regex: `^Transfer to .+: ${userDescription.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$` },
+                date: transaction.date
+              }).session(session);
+              
+              if (fromTransaction) {
+                // Restore both transactions
+                await TransactionModel.findByIdAndUpdate(transaction._id, { isArchived: false }, { session });
+                await TransactionModel.findByIdAndUpdate(fromTransaction._id, { isArchived: false }, { session });
+                
+                // Reapply account balances
+                await Promise.all([
+                  AccountModel.findByIdAndUpdate(fromTransaction.accountId, { 
+                    $inc: { balance: -amount } // Subtract the amount again
+                  }, { session }),
+                  AccountModel.findByIdAndUpdate(transaction.accountId, { 
+                    $inc: { balance: amount } // Add the amount again
+                  }, { session })
+                ]);
+                
+                restoredCount = 2;
+              } else {
+                // Only restore this transaction if we can't find the pair
+                await TransactionModel.findByIdAndUpdate(transaction._id, { isArchived: false }, { session });
+                restoredCount = 1;
+              }
+            }
+          }
+        } else {
+          // Regular transaction - just restore it
+          await TransactionModel.findByIdAndUpdate(transaction._id, { isArchived: false }, { session });
+          restoredCount = 1;
+        }
+      });
+      
+      return restoredCount > 0;
+    } catch (error) {
+      throw error;
+    } finally {
+      await session.endSession();
+    }
+  }
+
+  async permanentDeleteTransaction(id: string): Promise<boolean> {
+    const session = await TransactionModel.startSession();
+    
+    try {
+      let deletedCount = 0;
+      
+      await session.withTransaction(async () => {
+        // Find the transaction to delete
+        const transaction = await TransactionModel.findById(id).session(session);
+        if (!transaction) {
+          return;
+        }
+        
+        // Check if this is a transfer transaction
+        const isTransfer = transaction.description.startsWith('Transfer to ') || 
+                          transaction.description.startsWith('Transfer from ');
+        
+        if (isTransfer) {
+          // For transfers, we need to delete both transactions
+          const amount = transaction.amount;
+          const isFromTransaction = transaction.description.startsWith('Transfer to ');
+          
+          if (isFromTransaction) {
+            // This is the "from" transaction (expense)
+            // Find the corresponding "to" transaction (income)
+            const transferInfo = transaction.description.match(/^Transfer to ([^:]+): (.+)$/);
+            if (transferInfo) {
+              const [, toAccountName, userDescription] = transferInfo;
+              const toTransaction = await TransactionModel.findOne({
+                amount: amount,
+                type: 'income',
+                description: { $regex: `^Transfer from .+: ${userDescription.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$` },
+                date: transaction.date
+              }).session(session);
+              
+              if (toTransaction) {
+                // Delete both transactions permanently
+                await TransactionModel.findByIdAndDelete(transaction._id).session(session);
+                await TransactionModel.findByIdAndDelete(toTransaction._id).session(session);
                 deletedCount = 2;
               } else {
                 // Only delete this transaction if we can't find the pair
@@ -334,20 +624,9 @@ export class MongoDBStorage implements IStorage {
               }).session(session);
               
               if (fromTransaction) {
-                // Delete both transactions
+                // Delete both transactions permanently
                 await TransactionModel.findByIdAndDelete(transaction._id).session(session);
                 await TransactionModel.findByIdAndDelete(fromTransaction._id).session(session);
-                
-                // Revert account balances
-                await Promise.all([
-                  AccountModel.findByIdAndUpdate(fromTransaction.accountId, { 
-                    $inc: { balance: amount } // Add back the amount that was subtracted
-                  }, { session }),
-                  AccountModel.findByIdAndUpdate(transaction.accountId, { 
-                    $inc: { balance: -amount } // Subtract the amount that was added
-                  }, { session })
-                ]);
-                
                 deletedCount = 2;
               } else {
                 // Only delete this transaction if we can't find the pair
@@ -357,7 +636,7 @@ export class MongoDBStorage implements IStorage {
             }
           }
         } else {
-          // Regular transaction - just delete it
+          // Regular transaction - just delete it permanently
           await TransactionModel.findByIdAndDelete(transaction._id).session(session);
           deletedCount = 1;
         }
@@ -390,6 +669,7 @@ export class MongoDBStorage implements IStorage {
       type: doc.type,
       balance: doc.balance,
       userId: doc.userId.toString(),
+      isArchived: doc.isArchived || false,
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt
     };
@@ -402,6 +682,7 @@ export class MongoDBStorage implements IStorage {
       color: doc.color,
       icon: doc.icon,
       userId: doc.userId.toString(),
+      isArchived: doc.isArchived || false,
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt
     };
@@ -416,6 +697,7 @@ export class MongoDBStorage implements IStorage {
       date: doc.date,
       accountId: doc.accountId.toString(),
       categoryId: doc.categoryId.toString(),
+      isArchived: doc.isArchived || false,
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt
     };
@@ -430,6 +712,7 @@ export class MongoDBStorage implements IStorage {
       date: doc.date,
       accountId: doc.accountId._id.toString(),
       categoryId: doc.categoryId._id.toString(),
+      isArchived: doc.isArchived || false,
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt,
       account: this.transformAccount(doc.accountId),

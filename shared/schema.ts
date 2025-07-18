@@ -15,6 +15,7 @@ const AccountSchema = new mongoose.Schema({
   type: { type: String, required: true }, // checking, savings, credit
   balance: { type: Number, required: true },
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  isArchived: { type: Boolean, default: false },
 }, { timestamps: true });
 
 const CategorySchema = new mongoose.Schema({
@@ -22,6 +23,7 @@ const CategorySchema = new mongoose.Schema({
   color: { type: String, required: true },
   icon: { type: String, required: true },
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  isArchived: { type: Boolean, default: false },
 }, { timestamps: true });
 
 const TransactionSchema = new mongoose.Schema({
@@ -31,6 +33,7 @@ const TransactionSchema = new mongoose.Schema({
   date: { type: Date, required: true },
   accountId: { type: mongoose.Schema.Types.ObjectId, ref: 'Account', required: true },
   categoryId: { type: mongoose.Schema.Types.ObjectId, ref: 'Category', required: true },
+  isArchived: { type: Boolean, default: false },
 }, { timestamps: true });
 
 // Mongoose Models
@@ -105,6 +108,7 @@ export interface Account {
   type: string;
   balance: number;
   userId: string;
+  isArchived: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -115,6 +119,7 @@ export interface Category {
   color: string;
   icon: string;
   userId: string;
+  isArchived: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -127,6 +132,7 @@ export interface Transaction {
   date: Date;
   accountId: string;
   categoryId: string;
+  isArchived: boolean;
   createdAt: Date;
   updatedAt: Date;
 }

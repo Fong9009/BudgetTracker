@@ -32,7 +32,8 @@ import { ExportModal } from "@/components/export/export-modal";
 import { formatCurrency, formatDateFull, getTransactionTypeColor, debounce, cn, groupTransferTransactions, type TransactionOrTransfer } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Search, Edit2, Trash2, Download, Calendar as CalendarIcon, Filter, ChevronDown, X, SlidersHorizontal, ArrowRightLeft, Clock, TrendingUp, Zap } from "lucide-react";
+import { Plus, Search, Edit2, Trash2, Download, Calendar as CalendarIcon, Filter, ChevronDown, X, SlidersHorizontal, ArrowRightLeft, Clock, TrendingUp, Zap, Archive } from "lucide-react";
+import { useLocation } from "wouter";
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subDays, subMonths } from "date-fns";
 import type { TransactionWithDetails, Account, Category } from "@shared/schema";
 
@@ -58,6 +59,7 @@ export default function Transactions() {
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
 
   const { data: transactions = [], isLoading } = useQuery<TransactionWithDetails[]>({
     queryKey: ["/api/transactions"],
@@ -79,11 +81,12 @@ export default function Transactions() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/transactions/archived"] });
       queryClient.invalidateQueries({ queryKey: ["/api/accounts"] });
       queryClient.invalidateQueries({ queryKey: ["/api/analytics"] });
       toast({
         title: "Success",
-        description: "Transaction deleted successfully",
+        description: "Transaction archived successfully. You can restore it from the archive if needed.",
         variant: "success",
       });
       setDeleteTransaction(null);
@@ -91,7 +94,7 @@ export default function Transactions() {
     onError: (error: any) => {
       toast({
         title: "Error",
-        description: error.message || "Failed to delete transaction",
+        description: error.message || "Failed to archive transaction",
         variant: "destructive",
       });
     },
@@ -307,6 +310,14 @@ export default function Transactions() {
               </p>
             </div>
             <div className="mt-4 flex md:mt-0 md:ml-4 space-x-2">
+              <Button
+                variant="outline"
+                onClick={() => setLocation("/transactions/archived")}
+                className="flex items-center gap-2"
+              >
+                <Archive className="h-4 w-4" />
+                View Archive
+              </Button>
               <Button
                 variant="outline"
                 onClick={() => setShowExportModal(true)}

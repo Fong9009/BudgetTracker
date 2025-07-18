@@ -16,7 +16,8 @@ import { AddCategoryModal } from "@/components/modals/add-category-modal";
 import { EditCategoryModal } from "@/components/modals/edit-category-modal";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Edit2, Trash2 } from "lucide-react";
+import { Plus, Edit2, Trash2, Archive } from "lucide-react";
+import { useLocation } from "wouter";
 import type { Category } from "@shared/schema";
 
 export default function Categories() {
@@ -26,6 +27,7 @@ export default function Categories() {
   const [deleteCategory, setDeleteCategory] = useState<string | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
 
   const { data: categories = [], isLoading } = useQuery<Category[]>({
     queryKey: ["/api/categories"],
@@ -39,18 +41,19 @@ export default function Categories() {
     onSuccess: () => {
       console.log("Category deleted successfully");
       queryClient.invalidateQueries({ queryKey: ["/api/categories"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/categories/archived"] });
       toast({
         title: "Success",
-        description: "Category deleted successfully",
+        description: "Category archived successfully. You can restore it from the archive if needed.",
         variant: "success",
       });
       setDeleteCategory(null);
     },
     onError: (error: any) => {
       console.error("Category deletion error:", error);
-      const errorMessage = error.message || "Failed to delete category";
+      const errorMessage = error.message || "Failed to archive category";
       toast({
-        title: "Cannot Delete Category",
+        title: "Cannot Archive Category",
         description: errorMessage,
         variant: "destructive",
       });
@@ -84,7 +87,15 @@ export default function Categories() {
                 Organize your transactions with custom categories
               </p>
             </div>
-            <div className="mt-4 flex md:mt-0 md:ml-4">
+            <div className="mt-4 flex md:mt-0 md:ml-4 space-x-2">
+              <Button
+                variant="outline"
+                onClick={() => setLocation("/categories/archived")}
+                className="flex items-center gap-2"
+              >
+                <Archive className="h-4 w-4" />
+                View Archive
+              </Button>
               <Button
                 onClick={() => setShowAddCategory(true)}
                 className="bg-primary hover:bg-primary/90 text-primary-foreground"
@@ -224,23 +235,23 @@ export default function Categories() {
         category={selectedCategory}
       />
 
-      {/* Delete Confirmation Dialog */}
+      {/* Archive Confirmation Dialog */}
       <AlertDialog open={deleteCategory !== null} onOpenChange={() => setDeleteCategory(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogTitle>Archive Category</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the category.
-              Any transactions using this category will need to be recategorized.
+              This will move the category to your archive. You can restore it later from the archived categories page.
+              Note: You cannot archive a category that has active transactions. Please archive or delete those transactions first.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deleteCategory && handleDelete(deleteCategory)}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="bg-orange-600 text-white hover:bg-orange-700"
             >
-              {deleteMutation.isPending ? "Deleting..." : "Delete"}
+              {deleteMutation.isPending ? "Archiving..." : "Archive"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

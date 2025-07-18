@@ -12,6 +12,9 @@ import Accounts from '@/pages/accounts';
 import Categories from '@/pages/categories';
 import Transactions from '@/pages/transactions';
 import Profile from '@/pages/profile';
+import ArchivedAccounts from '@/pages/archived-accounts';
+import ArchivedTransactions from '@/pages/archived-transactions';
+import ArchivedCategories from '@/pages/archived-categories';
 import { Sidebar } from '@/components/layout/sidebar';
 import { TopBar } from '@/components/layout/top-bar'; 
 
@@ -74,8 +77,11 @@ function App() {
           <Switch>
             <ProtectedRoute path="/dashboard" component={Dashboard} />
             <ProtectedRoute path="/accounts" component={Accounts} />
+            <ProtectedRoute path="/accounts/archived" component={ArchivedAccounts} />
             <ProtectedRoute path="/categories" component={Categories} />
+            <ProtectedRoute path="/categories/archived" component={ArchivedCategories} />
             <ProtectedRoute path="/transactions" component={Transactions} />
+            <ProtectedRoute path="/transactions/archived" component={ArchivedTransactions} />
             <ProtectedRoute path="/profile" component={Profile} />
             <Route path="/login">
               <Redirect to="/dashboard" />

@@ -18,7 +18,8 @@ import { TransferModal } from "@/components/modals/transfer-modal";
 import { formatCurrency, getAccountTypeIcon, getAccountTypeColor } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Edit2, Trash2, ArrowRightLeft } from "lucide-react";
+import { Plus, Edit2, Trash2, ArrowRightLeft, Archive } from "lucide-react";
+import { useLocation } from "wouter";
 import type { Account } from "@shared/schema";
 
 export default function Accounts() {
@@ -27,6 +28,7 @@ export default function Accounts() {
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
   const [deleteAccount, setDeleteAccount] = useState<string | null>(null);
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -40,10 +42,11 @@ export default function Accounts() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/accounts/archived"] });
       queryClient.invalidateQueries({ queryKey: ["/api/analytics"] });
       toast({
         title: "Success",
-        description: "Account deleted successfully",
+        description: "Account archived successfully. You can restore it from the archive if needed.",
         variant: "success",
       });
       setDeleteAccount(null);
@@ -51,7 +54,7 @@ export default function Accounts() {
     onError: (error: any) => {
       toast({
         title: "Error",
-        description: error.message || "Failed to delete account",
+        description: error.message || "Failed to archive account",
         variant: "destructive",
       });
     },
@@ -81,6 +84,14 @@ export default function Accounts() {
               </p>
             </div>
             <div className="mt-4 flex md:mt-0 md:ml-4 space-x-2">
+              <Button
+                variant="outline"
+                onClick={() => setLocation("/accounts/archived")}
+                className="flex items-center gap-2"
+              >
+                <Archive className="h-4 w-4" />
+                View Archive
+              </Button>
               <Button
                 variant="outline"
                 onClick={() => setShowTransferModal(true)}
@@ -188,7 +199,8 @@ export default function Accounts() {
                             variant="ghost"
                             size="sm"
                             onClick={() => setDeleteAccount(account._id)}
-                            className="text-destructive hover:text-destructive"
+                            className="text-orange-600 hover:text-orange-700"
+                            title="Archive account"
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -226,23 +238,23 @@ export default function Accounts() {
         <EditAccountModal open={showEditAccount} onOpenChange={setShowEditAccount} account={selectedAccount} />
         <TransferModal open={showTransferModal} onOpenChange={setShowTransferModal} />
 
-        {/* Delete Confirmation */}
+        {/* Archive Confirmation */}
         <AlertDialog open={deleteAccount !== null} onOpenChange={() => setDeleteAccount(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This action cannot be undone. This will permanently delete the account
-                and all associated transactions.
-              </AlertDialogDescription>
+              <AlertDialogTitle>Archive Account</AlertDialogTitle>
+                          <AlertDialogDescription>
+              This will move the account to your archive. You can restore it later from the archived accounts page.
+              Note: You cannot archive an account that has active transactions. Please archive or delete those transactions first.
+            </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction
                 onClick={() => deleteAccount && handleDelete(deleteAccount)}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                className="bg-orange-600 text-white hover:bg-orange-700"
               >
-                {deleteMutation.isPending ? "Deleting..." : "Delete"}
+                {deleteMutation.isPending ? "Archiving..." : "Archive"}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
