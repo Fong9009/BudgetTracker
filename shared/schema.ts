@@ -90,6 +90,54 @@ export const transferSchema = z.object({
   path: ["toAccountId"],
 });
 
+// Additional validation schemas for server-side operations
+export const updateProfileSchema = z.object({
+  username: z.string().min(3).max(20).optional(),
+  email: z.string().email().optional(),
+});
+
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, "Current password is required"),
+  newPassword: z.string().min(6, "New password must be at least 6 characters"),
+});
+
+export const forgotPasswordSchema = z.object({
+  email: z.string().email("Please enter a valid email address"),
+});
+
+export const resetPasswordSchema = z.object({
+  token: z.string().min(1, "Reset token is required"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+});
+
+export const updateAccountSchema = insertAccountSchema.partial();
+
+export const updateCategorySchema = insertCategorySchema.partial();
+
+export const updateTransactionSchema = insertTransactionSchema.partial();
+
+// Query parameter validation schemas
+export const transactionFiltersSchema = z.object({
+  search: z.string().optional(),
+  accountId: z.string().optional(),
+  categoryId: z.string().optional(),
+  type: z.string().optional(),
+  transactionKind: z.string().optional(),
+  dateFrom: z.string().optional(),
+  dateTo: z.string().optional(),
+  amountMin: z.string().optional(),
+  amountMax: z.string().optional(),
+  sortBy: z.string().optional(),
+  sortOrder: z.enum(['asc', 'desc']).optional(),
+  page: z.string().optional(),
+  limit: z.string().optional(),
+});
+
+export const paginationSchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(50),
+});
+
 // TypeScript types
 export interface User {
   _id: string;
@@ -143,6 +191,15 @@ export type InsertAccount = z.infer<typeof insertAccountSchema>;
 export type InsertCategory = z.infer<typeof insertCategorySchema>;
 export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
 export type Transfer = z.infer<typeof transferSchema>;
+export type UpdateProfile = z.infer<typeof updateProfileSchema>;
+export type ChangePassword = z.infer<typeof changePasswordSchema>;
+export type ForgotPassword = z.infer<typeof forgotPasswordSchema>;
+export type ResetPassword = z.infer<typeof resetPasswordSchema>;
+export type UpdateAccount = z.infer<typeof updateAccountSchema>;
+export type UpdateCategory = z.infer<typeof updateCategorySchema>;
+export type UpdateTransaction = z.infer<typeof updateTransactionSchema>;
+export type TransactionFilters = z.infer<typeof transactionFiltersSchema>;
+export type Pagination = z.infer<typeof paginationSchema>;
 
 export interface TransactionWithDetails extends Transaction {
   account: Account;

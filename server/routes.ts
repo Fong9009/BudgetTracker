@@ -1,17 +1,34 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertAccountSchema, insertCategorySchema, insertTransactionSchema, transferSchema, registerUserSchema, loginUserSchema } from "@shared/schema";
+import { 
+  insertAccountSchema, 
+  insertCategorySchema, 
+  insertTransactionSchema, 
+  transferSchema, 
+  registerUserSchema, 
+  loginUserSchema,
+  updateProfileSchema,
+  changePasswordSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
+  updateAccountSchema,
+  updateCategorySchema,
+  updateTransactionSchema,
+  transactionFiltersSchema,
+  paginationSchema
+} from "@shared/schema";
 import { authMiddleware, generateToken, comparePassword, hashPassword, type AuthenticatedRequest } from "./auth";
+import { validateRequest, validateQuery, validateRequestAndQuery, handleValidationError } from "./validation";
 import { z } from "zod";
 import { sendEmail } from "./mail";
 import crypto from "crypto";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Authentication routes
-  app.post("/api/auth/register", async (req, res) => {
+  app.post("/api/auth/register", validateRequest(registerUserSchema), async (req, res) => {
     try {
-      const validatedData = registerUserSchema.parse(req.body);
+      const validatedData = req.body;
       
       // Check if user already exists
       const existingUser = await storage.getUserByEmail(validatedData.email);
@@ -32,16 +49,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       });
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid user data", errors: error.errors });
-      }
       res.status(500).json({ message: "Failed to create user" });
     }
   });
 
-  app.post("/api/auth/login", async (req, res) => {
+  app.post("/api/auth/login", validateRequest(loginUserSchema), async (req, res) => {
     try {
-      const validatedData = loginUserSchema.parse(req.body);
+      const validatedData = req.body;
       
       const user = await storage.getUserByEmail(validatedData.email);
       if (!user) {
@@ -65,9 +79,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       });
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid login data", errors: error.errors });
-      }
       res.status(500).json({ message: "Failed to login" });
     }
   });
@@ -78,7 +89,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
-  app.put("/api/auth/profile", authMiddleware, async (req: AuthenticatedRequest, res) => {
+  app.put("/api/auth/profile", authMiddleware, validateRequest(updateProfileSchema), async (req: AuthenticatedRequest, res) => {
     try {
       const userId = req.user?._id;
       if (!userId) {
@@ -86,14 +97,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { username, email } = req.body;
-
-      // Basic validation
-      if (username && username.length < 3) {
-        return res.status(400).json({ message: "Username must be at least 3 characters" });
-      }
-      if (email && !/\S+@\S+\.\S+/.test(email)) {
-        return res.status(400).json({ message: "Please enter a valid email" });
-      }
 
       // Check if email is already taken by another user
       if (email) {
@@ -126,7 +129,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/auth/change-password", authMiddleware, async (req: AuthenticatedRequest, res) => {
+  app.put("/api/auth/change-password", authMiddleware, validateRequest(changePasswordSchema), async (req: AuthenticatedRequest, res) => {
     try {
       const userId = req.user?._id;
       if (!userId) {
@@ -134,14 +137,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { currentPassword, newPassword } = req.body;
-
-      if (!currentPassword || !newPassword) {
-        return res.status(400).json({ message: "Current password and new password are required" });
-      }
-
-      if (newPassword.length < 6) {
-        return res.status(400).json({ message: "New password must be at least 6 characters" });
-      }
 
       const user = await storage.getUserById(userId);
       if (!user) {
@@ -174,7 +169,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/auth/forgot-password", async (req, res) => {
+  app.post("/api/auth/forgot-password", validateRequest(forgotPasswordSchema), async (req, res) => {
     try {
       const { email } = req.body;
       const user = await storage.getUserByEmail(email);
@@ -224,17 +219,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/auth/reset-password", async (req, res) => {
+  app.post("/api/auth/reset-password", validateRequest(resetPasswordSchema), async (req, res) => {
     try {
       const { token, password } = req.body;
-      
-      if (!token || !password) {
-        return res.status(400).json({ message: "Token and password are required." });
-      }
-
-      if (password.length < 6) {
-        return res.status(400).json({ message: "Password must be at least 6 characters." });
-      }
 
       const user = await storage.getUserByResetToken(token);
 
@@ -291,32 +278,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/accounts", authMiddleware, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/accounts", authMiddleware, validateRequest(insertAccountSchema), async (req: AuthenticatedRequest, res) => {
     try {
-      const validatedData = insertAccountSchema.parse(req.body);
+      const validatedData = req.body;
       const account = await storage.createAccount(validatedData, req.user!._id);
       res.status(201).json(account);
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid account data", errors: error.errors });
-      }
       res.status(500).json({ message: "Failed to create account" });
     }
   });
 
-  app.put("/api/accounts/:id", authMiddleware, async (req: AuthenticatedRequest, res) => {
+  app.put("/api/accounts/:id", authMiddleware, validateRequest(updateAccountSchema), async (req: AuthenticatedRequest, res) => {
     try {
       const id = req.params.id;
-      const validatedData = insertAccountSchema.partial().parse(req.body);
+      const validatedData = req.body;
       const account = await storage.updateAccount(id, validatedData);
       if (!account) {
         return res.status(404).json({ message: "Account not found" });
       }
       res.json(account);
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid account data", errors: error.errors });
-      }
       res.status(500).json({ message: "Failed to update account" });
     }
   });
@@ -380,32 +361,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/categories", authMiddleware, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/categories", authMiddleware, validateRequest(insertCategorySchema), async (req: AuthenticatedRequest, res) => {
     try {
-      const validatedData = insertCategorySchema.parse(req.body);
+      const validatedData = req.body;
       const category = await storage.createCategory(validatedData, req.user!._id);
       res.status(201).json(category);
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid category data", errors: error.errors });
-      }
       res.status(500).json({ message: "Failed to create category" });
     }
   });
 
-  app.put("/api/categories/:id", authMiddleware, async (req: AuthenticatedRequest, res) => {
+  app.put("/api/categories/:id", authMiddleware, validateRequest(updateCategorySchema), async (req: AuthenticatedRequest, res) => {
     try {
       const id = req.params.id;
-      const validatedData = insertCategorySchema.partial().parse(req.body);
+      const validatedData = req.body;
       const category = await storage.updateCategory(id, validatedData);
       if (!category) {
         return res.status(404).json({ message: "Category not found" });
       }
       res.json(category);
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid category data", errors: error.errors });
-      }
       res.status(500).json({ message: "Failed to update category" });
     }
   });
@@ -518,9 +493,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Transaction routes (protected)
-  app.get("/api/transactions", authMiddleware, async (req: AuthenticatedRequest, res) => {
+  app.get("/api/transactions", authMiddleware, validateQuery(transactionFiltersSchema), async (req: AuthenticatedRequest, res) => {
     try {
-      // Parse query parameters
+      // Parse query parameters with validation
       const {
         search,
         accountId,
@@ -537,9 +512,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         limit = '50'
       } = req.query;
 
-      // Parse pagination
-      const pageNum = parseInt(page as string) || 1;
-      const limitNum = Math.min(parseInt(limit as string) || 50, 100); // Max 100 per page
+      // Parse pagination with validation
+      const paginationData = paginationSchema.parse({ page, limit });
 
       // Parse filters
       const filters = {
@@ -560,21 +534,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         order: (sortOrder as string) === 'asc' ? 'asc' : 'desc' as 'asc' | 'desc'
       };
 
-      // Parse pagination
-      const pagination = {
-        page: pageNum,
-        limit: limitNum
-      };
-
       const result = await storage.getTransactionsWithFilters(
         req.user!._id,
         filters,
         sort,
-        pagination
+        paginationData
       );
 
       res.json(result);
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          message: "Invalid query parameters", 
+          errors: error.errors.map(err => ({
+            field: err.path.join('.'),
+            message: err.message
+          }))
+        });
+      }
       console.error("Error fetching transactions:", error);
       res.status(500).json({ message: "Failed to fetch transactions" });
     }
@@ -603,32 +580,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/transactions", authMiddleware, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/transactions", authMiddleware, validateRequest(insertTransactionSchema), async (req: AuthenticatedRequest, res) => {
     try {
-      const validatedData = insertTransactionSchema.parse(req.body);
+      const validatedData = req.body;
       const transaction = await storage.createTransaction(validatedData);
       res.status(201).json(transaction);
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid transaction data", errors: error.errors });
-      }
       res.status(500).json({ message: "Failed to create transaction" });
     }
   });
 
-  app.put("/api/transactions/:id", authMiddleware, async (req: AuthenticatedRequest, res) => {
+  app.put("/api/transactions/:id", authMiddleware, validateRequest(updateTransactionSchema), async (req: AuthenticatedRequest, res) => {
     try {
       const id = req.params.id;
-      const validatedData = insertTransactionSchema.partial().parse(req.body);
+      const validatedData = req.body;
       const transaction = await storage.updateTransaction(id, validatedData);
       if (!transaction) {
         return res.status(404).json({ message: "Transaction not found" });
       }
       res.json(transaction);
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid transaction data", errors: error.errors });
-      }
       res.status(500).json({ message: "Failed to update transaction" });
     }
   });
@@ -647,9 +618,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Transfer routes (protected)
-  app.post("/api/transfers", authMiddleware, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/transfers", authMiddleware, validateRequest(transferSchema), async (req: AuthenticatedRequest, res) => {
     try {
-      const validatedData = transferSchema.parse(req.body);
+      const validatedData = req.body;
       const result = await storage.createTransfer(validatedData, req.user!._id);
       res.status(201).json({
         message: "Transfer completed successfully",
@@ -657,9 +628,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         toTransaction: result.toTransaction
       });
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid transfer data", errors: error.errors });
-      }
       if (error instanceof Error) {
         if (error.message.includes("not found") || error.message.includes("don't belong")) {
           return res.status(404).json({ message: error.message });
