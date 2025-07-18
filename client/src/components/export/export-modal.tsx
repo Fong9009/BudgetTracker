@@ -42,7 +42,7 @@ export function ExportModal({ open, onOpenChange }: ExportModalProps) {
     enabled: open,
   });
 
-  const filteredTransactions = transactions.filter((transaction: Transaction) => {
+  const filteredTransactions = (transactions || []).filter((transaction: Transaction) => {
     const transactionDate = new Date(transaction.date);
     return transactionDate >= dateRange.from && transactionDate <= dateRange.to;
   });

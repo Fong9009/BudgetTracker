@@ -513,6 +513,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } = req.query;
 
       // Parse pagination with validation
+      console.log("Query params:", { page, limit, pageType: typeof page, limitType: typeof limit });
       const paginationData = paginationSchema.parse({ page, limit });
 
       // Parse filters
@@ -543,7 +544,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(result);
     } catch (error) {
+      console.error("Transactions route error:", error);
       if (error instanceof z.ZodError) {
+        console.error("Zod validation error:", error.errors);
         return res.status(400).json({ 
           message: "Invalid query parameters", 
           errors: error.errors.map(err => ({

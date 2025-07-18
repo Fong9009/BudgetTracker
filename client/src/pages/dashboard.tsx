@@ -51,7 +51,8 @@ export default function Dashboard() {
 
   const filteredCategorySpending = categorySpending.filter(c => c.name !== 'Transfer');
   
-  const groupedTransactions = groupTransferTransactions(transactions);
+  // Safety check for transactions
+  const groupedTransactions = transactions ? groupTransferTransactions(transactions) : [];
   const recentTransactions = groupedTransactions.slice(0, 4);
   
   // Get recent transfers from grouped transactions

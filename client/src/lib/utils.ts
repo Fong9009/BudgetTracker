@@ -126,6 +126,11 @@ export function extractTransferInfo(description: string): { direction: 'to' | 'f
 }
 
 export function groupTransferTransactions(transactions: TransactionWithDetails[]): TransactionOrTransfer[] {
+  // Safety check for null/undefined
+  if (!transactions || !Array.isArray(transactions)) {
+    return [];
+  }
+  
   const transferPairs = new Map<string, {
     fromTransaction?: TransactionWithDetails;
     toTransaction?: TransactionWithDetails;
@@ -187,6 +192,7 @@ export function groupTransferTransactions(transactions: TransactionWithDetails[]
           accountId: pair.fromTransaction.accountId,
           category: pair.fromTransaction.category,
           categoryId: pair.fromTransaction.categoryId,
+          isArchived: pair.fromTransaction.isArchived,
           createdAt: pair.fromTransaction.createdAt,
           updatedAt: pair.fromTransaction.updatedAt,
           fromAccount: {
