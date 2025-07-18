@@ -167,8 +167,19 @@ export class MongoDBStorage implements IStorage {
   }
 
   async deleteCategory(id: string): Promise<boolean> {
-    const result = await CategoryModel.findByIdAndDelete(id);
-    return !!result;
+    try {
+      // Check if category is being used by any transactions
+      const transactionCount = await TransactionModel.countDocuments({ categoryId: id });
+      if (transactionCount > 0) {
+        throw new Error(`Cannot delete category: ${transactionCount} transactions are using this category`);
+      }
+      
+      const result = await CategoryModel.findByIdAndDelete(id);
+      return !!result;
+    } catch (error) {
+      console.error("Error deleting category:", error);
+      throw error;
+    }
   }
 
   // Transaction methods

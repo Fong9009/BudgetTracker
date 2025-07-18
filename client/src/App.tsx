@@ -17,7 +17,16 @@ import { TopBar } from '@/components/layout/top-bar';
 
 // A custom route to handle protected content
 const ProtectedRoute = ({ component: Component, ...rest }: any) => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
+  
+  if (isLoading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div>Loading...</div>
+      </div>
+    );
+  }
+  
   return isAuthenticated ? <Route {...rest} component={Component} /> : <Redirect to="/login" />;
 };
 
@@ -25,6 +34,7 @@ function App() {
   const { isAuthenticated, login, logout, isLoading } = useAuth();
   const [, setLocation] = useLocation();
 
+  // Show loading screen during initial authentication check
   if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center">
@@ -62,7 +72,7 @@ function App() {
         <TopBar onLogout={logout} />
         <main className="flex-1 overflow-y-auto">
           <Switch>
-            <Route path="/dashboard" component={Dashboard} />
+            <ProtectedRoute path="/dashboard" component={Dashboard} />
             <ProtectedRoute path="/accounts" component={Accounts} />
             <ProtectedRoute path="/categories" component={Categories} />
             <ProtectedRoute path="/transactions" component={Transactions} />
@@ -79,7 +89,6 @@ function App() {
             <Route path="/">
               <Redirect to="/dashboard" />
             </Route>
-            {/* Add other authenticated routes here */}
           </Switch>
         </main>
       </div>

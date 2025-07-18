@@ -33,9 +33,11 @@ export default function Categories() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
+      console.log("Deleting category with ID:", id);
       await apiRequest("DELETE", `/api/categories/${id}`);
     },
     onSuccess: () => {
+      console.log("Category deleted successfully");
       queryClient.invalidateQueries({ queryKey: ["/api/categories"] });
       toast({
         title: "Success",
@@ -45,17 +47,21 @@ export default function Categories() {
       setDeleteCategory(null);
     },
     onError: (error: any) => {
+      console.error("Category deletion error:", error);
+      const errorMessage = error.message || "Failed to delete category";
       toast({
-        title: "Error",
-        description: error.message || "Failed to delete category",
+        title: "Cannot Delete Category",
+        description: errorMessage,
         variant: "destructive",
       });
+      setDeleteCategory(null);
     },
   });
 
   const filteredCategories = categories.filter(c => c.name !== 'Transfer');
 
   const handleDelete = (id: string) => {
+    console.log("handleDelete called with ID:", id);
     deleteMutation.mutate(id);
   };
 

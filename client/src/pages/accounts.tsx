@@ -105,7 +105,7 @@ export default function Accounts() {
             <CardContent className="pt-6">
               <div className="text-center">
                 <h3 className="text-sm font-medium text-muted-foreground">
-                  Total Net Worth
+                  Total Balance
                 </h3>
                 <p className={`text-3xl font-bold mt-2 ${accounts.reduce((sum, account) => sum + account.balance, 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                   ${accounts.reduce((sum, account) => sum + account.balance, 0).toFixed(2)}

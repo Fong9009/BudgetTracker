@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -39,6 +40,7 @@ const formSchema = z.object({
 type FormData = z.infer<typeof formSchema>;
 
 const iconOptions = [
+  { value: "fas fa-tag", label: "General", icon: "fas fa-tag" },
   { value: "fas fa-utensils", label: "Food & Dining", icon: "fas fa-utensils" },
   { value: "fas fa-car", label: "Transportation", icon: "fas fa-car" },
   { value: "fas fa-film", label: "Entertainment", icon: "fas fa-film" },
@@ -66,6 +68,7 @@ interface AddCategoryModalProps {
 export function AddCategoryModal({ open, onOpenChange }: AddCategoryModalProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -78,10 +81,14 @@ export function AddCategoryModal({ open, onOpenChange }: AddCategoryModalProps) 
 
   const createMutation = useMutation({
     mutationFn: async (data: FormData) => {
+      console.log("Creating category with data:", data);
+      setIsSubmitting(true);
       const response = await apiRequest("POST", "/api/categories", data);
-      return response.json();
+      console.log("Category creation response:", response);
+      return response;
     },
     onSuccess: () => {
+      console.log("Category creation successful");
       queryClient.invalidateQueries({ queryKey: ["/api/categories"] });
       toast({
         title: "Success",
@@ -89,23 +96,37 @@ export function AddCategoryModal({ open, onOpenChange }: AddCategoryModalProps) 
         variant: "success",
       });
       form.reset();
+      setIsSubmitting(false);
       onOpenChange(false);
     },
     onError: (error: any) => {
+      console.error("Category creation error:", error);
       toast({
         title: "Error",
         description: error.message || "Failed to add category",
         variant: "destructive",
       });
+      setIsSubmitting(false);
     },
   });
 
   const onSubmit = (data: FormData) => {
+    console.log("onSubmit called with data:", data, "isPending:", createMutation.isPending, "isSubmitting:", isSubmitting);
+    if (createMutation.isPending || isSubmitting) {
+      console.log("Mutation is pending or already submitting, skipping submission");
+      return; // Prevent multiple submissions
+    }
+    console.log("Calling createMutation.mutate");
     createMutation.mutate(data);
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(newOpen) => {
+      if (!newOpen) {
+        setIsSubmitting(false);
+      }
+      onOpenChange(newOpen);
+    }}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Add New Category</DialogTitle>
@@ -189,12 +210,12 @@ export function AddCategoryModal({ open, onOpenChange }: AddCategoryModalProps) 
                 type="button"
                 variant="outline"
                 onClick={() => onOpenChange(false)}
-                disabled={createMutation.isPending}
+                disabled={createMutation.isPending || isSubmitting}
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={createMutation.isPending}>
-                {createMutation.isPending ? "Adding..." : "Add Category"}
+              <Button type="submit" disabled={createMutation.isPending || isSubmitting}>
+                {createMutation.isPending || isSubmitting ? "Adding..." : "Add Category"}
               </Button>
             </DialogFooter>
           </form>

@@ -21,6 +21,13 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -42,6 +49,27 @@ const formSchema = z.object({
 });
 
 type FormData = z.infer<typeof formSchema>;
+
+const iconOptions = [
+  { value: "fas fa-tag", label: "General", icon: "fas fa-tag" },
+  { value: "fas fa-utensils", label: "Food & Dining", icon: "fas fa-utensils" },
+  { value: "fas fa-car", label: "Transportation", icon: "fas fa-car" },
+  { value: "fas fa-film", label: "Entertainment", icon: "fas fa-film" },
+  { value: "fas fa-shopping-bag", label: "Shopping", icon: "fas fa-shopping-bag" },
+  { value: "fas fa-bolt", label: "Utilities", icon: "fas fa-bolt" },
+  { value: "fas fa-dollar-sign", label: "Income", icon: "fas fa-dollar-sign" },
+  { value: "fas fa-heartbeat", label: "Healthcare", icon: "fas fa-heartbeat" },
+  { value: "fas fa-graduation-cap", label: "Education", icon: "fas fa-graduation-cap" },
+  { value: "fas fa-home", label: "Housing", icon: "fas fa-home" },
+  { value: "fas fa-gamepad", label: "Gaming", icon: "fas fa-gamepad" },
+  { value: "fas fa-plane", label: "Travel", icon: "fas fa-plane" },
+  { value: "fas fa-gift", label: "Gifts", icon: "fas fa-gift" },
+];
+
+const colorOptions = [
+  "#3B82F6", "#10B981", "#F59E0B", "#8B5CF6", "#EF4444", "#059669",
+  "#EC4899", "#6366F1", "#F97316", "#84CC16", "#06B6D4", "#8B5A2B",
+];
 
 interface EditCategoryModalProps {
   open: boolean;
@@ -114,16 +142,7 @@ export function EditCategoryModal({ open, onOpenChange, category }: EditCategory
 
   if (!category) return null;
 
-  const commonColors = [
-    "#3B82F6", "#EF4444", "#10B981", "#F59E0B", "#8B5CF6",
-    "#EC4899", "#06B6D4", "#84CC16", "#F97316", "#6B7280"
-  ];
 
-  const commonIcons = [
-    "fas fa-folder", "fas fa-shopping-cart", "fas fa-car", "fas fa-home",
-    "fas fa-utensils", "fas fa-gamepad", "fas fa-plane", "fas fa-heart",
-    "fas fa-briefcase", "fas fa-graduation-cap", "fas fa-medkit", "fas fa-gift"
-  ];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -158,23 +177,18 @@ export function EditCategoryModal({ open, onOpenChange, category }: EditCategory
                 <FormItem>
                   <FormLabel>Color</FormLabel>
                   <FormControl>
-                    <div className="space-y-2">
-                      <Input
-                        type="color"
-                        className="w-full h-10"
-                        {...field}
-                      />
-                      <div className="flex flex-wrap gap-2">
-                        {commonColors.map((color) => (
-                          <button
-                            key={color}
-                            type="button"
-                            className="w-8 h-8 rounded-full border-2 border-gray-300 hover:border-gray-400"
-                            style={{ backgroundColor: color }}
-                            onClick={() => field.onChange(color)}
-                          />
-                        ))}
-                      </div>
+                    <div className="flex flex-wrap gap-2">
+                      {colorOptions.map((color) => (
+                        <button
+                          key={color}
+                          type="button"
+                          className={`w-8 h-8 rounded-full border-2 ${
+                            field.value === color ? "border-foreground" : "border-border"
+                          }`}
+                          style={{ backgroundColor: color }}
+                          onClick={() => field.onChange(color)}
+                        />
+                      ))}
                     </div>
                   </FormControl>
                   <FormMessage />
@@ -188,26 +202,23 @@ export function EditCategoryModal({ open, onOpenChange, category }: EditCategory
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Icon</FormLabel>
-                  <FormControl>
-                    <div className="space-y-2">
-                      <Input
-                        placeholder="e.g., fas fa-utensils"
-                        {...field}
-                      />
-                      <div className="grid grid-cols-6 gap-2">
-                        {commonIcons.map((icon) => (
-                          <button
-                            key={icon}
-                            type="button"
-                            className="p-2 border rounded hover:bg-gray-50 flex items-center justify-center"
-                            onClick={() => field.onChange(icon)}
-                          >
-                            <i className={`${icon} text-lg`} />
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </FormControl>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select an icon" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {iconOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          <div className="flex items-center">
+                            <i className={`${option.icon} mr-2`} />
+                            {option.label}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}

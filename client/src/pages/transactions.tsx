@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,8 +32,8 @@ import { ExportModal } from "@/components/export/export-modal";
 import { formatCurrency, formatDateFull, getTransactionTypeColor, debounce, cn, groupTransferTransactions, type TransactionOrTransfer } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Search, Edit2, Trash2, Download, Calendar as CalendarIcon, Filter, ChevronDown, X, SlidersHorizontal, ArrowRightLeft } from "lucide-react";
-import { format } from "date-fns";
+import { Plus, Search, Edit2, Trash2, Download, Calendar as CalendarIcon, Filter, ChevronDown, X, SlidersHorizontal, ArrowRightLeft, Clock, TrendingUp, Zap } from "lucide-react";
+import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subDays, subMonths } from "date-fns";
 import type { TransactionWithDetails, Account, Category } from "@shared/schema";
 
 export default function Transactions() {
@@ -135,10 +136,9 @@ export default function Transactions() {
       // Filter by category
       const matchesCategory = selectedCategory === "all" || item.categoryId === selectedCategory;
       
-      // Filter by type
+      // Filter by type - only applies to regular transactions (not transfers)
       const matchesType = selectedType === "all" || 
-        (selectedType === "transfer" && item.type === "transfer") ||
-        (selectedType !== "transfer" && item.type === selectedType);
+        (item.type !== "transfer" && item.type === selectedType);
       
       // Filter by transaction kind
       const matchesKind = selectedTransactionKind === "all" ||
@@ -218,9 +218,75 @@ export default function Transactions() {
     setSortOrder("desc");
   };
 
+  // Quick filter presets
+  const applyQuickFilter = (preset: string) => {
+    clearAllFilters();
+    const now = new Date();
+    
+    switch (preset) {
+      case "today":
+        setDateFrom(startOfDay(now));
+        setDateTo(endOfDay(now));
+        break;
+      case "this-week":
+        setDateFrom(startOfWeek(now));
+        setDateTo(endOfWeek(now));
+        break;
+      case "this-month":
+        setDateFrom(startOfMonth(now));
+        setDateTo(endOfMonth(now));
+        break;
+      case "last-30-days":
+        setDateFrom(subDays(now, 30));
+        setDateTo(now);
+        break;
+      case "last-month":
+        const lastMonth = subMonths(now, 1);
+        setDateFrom(startOfMonth(lastMonth));
+        setDateTo(endOfMonth(lastMonth));
+        break;
+      case "high-amounts":
+        setAmountMin("500");
+        setSortBy("amount");
+        setSortOrder("desc");
+        break;
+      case "recent-transfers":
+        setSelectedTransactionKind("transfer");
+        setDateFrom(subDays(now, 7));
+        setSortBy("date");
+        setSortOrder("desc");
+        break;
+      case "income-only":
+        setSelectedType("income");
+        setSelectedTransactionKind("transaction");
+        setSortBy("amount");
+        setSortOrder("desc");
+        break;
+      case "expenses-only":
+        setSelectedType("expense");
+        setSelectedTransactionKind("transaction");
+        setSortBy("amount");
+        setSortOrder("desc");
+        break;
+    }
+  };
+
   // Check if any filters are active
   const hasActiveFilters = searchTerm || selectedAccount !== "all" || selectedCategory !== "all" || 
     selectedType !== "all" || selectedTransactionKind !== "all" || dateFrom || dateTo || amountMin || amountMax;
+
+  // Get active filter count
+  const getActiveFilterCount = () => {
+    let count = 0;
+    if (searchTerm) count++;
+    if (selectedAccount !== "all") count++;
+    if (selectedCategory !== "all") count++;
+    if (selectedType !== "all") count++;
+    if (selectedTransactionKind !== "all") count++;
+    if (dateFrom || dateTo) count++;
+    if (amountMin || amountMax) count++;
+    return count;
+  };
 
   const handleDelete = (id: string) => {
     deleteMutation.mutate(id);
@@ -276,9 +342,9 @@ export default function Transactions() {
                   <Filter className="h-5 w-5" />
                   Filter & Search Transactions
                   {hasActiveFilters && (
-                    <span className="text-xs bg-primary text-primary-foreground px-2 py-1 rounded-full">
+                    <Badge variant="secondary" className="ml-2">
                       {filteredAndSortedTransactions.length} results
-                    </span>
+                    </Badge>
                   )}
                 </CardTitle>
                 <div className="flex items-center gap-2">
@@ -290,6 +356,11 @@ export default function Transactions() {
                   >
                     <SlidersHorizontal className="h-4 w-4" />
                     Advanced
+                    {getActiveFilterCount() > 0 && (
+                      <Badge variant="destructive" className="h-5 w-5 p-0 flex items-center justify-center text-xs">
+                        {getActiveFilterCount()}
+                      </Badge>
+                    )}
                     <ChevronDown className={cn("h-4 w-4 transition-transform", showAdvancedFilters && "rotate-180")} />
                   </Button>
                   {hasActiveFilters && (
@@ -302,14 +373,112 @@ export default function Transactions() {
               </div>
             </CardHeader>
             <CardContent>
+              {/* Quick Filter Presets */}
+              <div className="mb-6">
+                <div className="flex items-center gap-2 mb-3">
+                  <Zap className="h-4 w-4 text-primary" />
+                  <h4 className="text-sm font-medium">Quick Filters</h4>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => applyQuickFilter("today")}
+                    className="h-8 text-xs"
+                  >
+                    <Clock className="h-3 w-3 mr-1" />
+                    Today
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => applyQuickFilter("this-week")}
+                    className="h-8 text-xs"
+                  >
+                    This Week
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => applyQuickFilter("this-month")}
+                    className="h-8 text-xs"
+                  >
+                    This Month
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => applyQuickFilter("last-30-days")}
+                    className="h-8 text-xs"
+                  >
+                    Last 30 Days
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => applyQuickFilter("last-month")}
+                    className="h-8 text-xs"
+                  >
+                    Last Month
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => applyQuickFilter("high-amounts")}
+                    className="h-8 text-xs"
+                  >
+                    <TrendingUp className="h-3 w-3 mr-1" />
+                    High Amounts
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => applyQuickFilter("recent-transfers")}
+                    className="h-8 text-xs"
+                  >
+                    <ArrowRightLeft className="h-3 w-3 mr-1" />
+                    Recent Transfers
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => applyQuickFilter("income-only")}
+                    className="h-8 text-xs text-green-600 hover:text-green-700"
+                  >
+                    Income Only
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => applyQuickFilter("expenses-only")}
+                    className="h-8 text-xs text-red-600 hover:text-red-700"
+                  >
+                    Expenses Only
+                  </Button>
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {/* Search Input */}
-                <div className="lg:col-span-1">
+                {/* Enhanced Search Input */}
+                <div className="lg:col-span-1 relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     placeholder="Search description, account, category..."
                     onChange={(e) => handleSearchChange(e.target.value)}
-                    className="w-full"
+                    className="pl-10"
                   />
+                  {searchTerm && (
+                    <button
+                      onClick={() => {
+                        setSearchTerm("");
+                        const input = document.querySelector('input[placeholder*="Search"]') as HTMLInputElement;
+                        if (input) input.value = "";
+                      }}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
 
                 {/* Account Filter */}
@@ -343,9 +512,121 @@ export default function Transactions() {
                 </Select>
               </div>
 
+              {/* Active Filters Display */}
+              {hasActiveFilters && (
+                <div className="mt-4 p-3 bg-muted/30 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Filter className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium text-muted-foreground">Active Filters:</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {searchTerm && (
+                      <Badge variant="secondary" className="flex items-center gap-1">
+                        <Search className="h-3 w-3" />
+                        Search: "{searchTerm}"
+                        <button
+                          onClick={() => {
+                            setSearchTerm("");
+                            const input = document.querySelector('input[placeholder*="Search"]') as HTMLInputElement;
+                            if (input) input.value = "";
+                          }}
+                          className="ml-1 hover:bg-destructive/20 rounded-full p-0.5"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    )}
+                    {selectedAccount !== "all" && (
+                      <Badge variant="secondary" className="flex items-center gap-1">
+                        Account: {accounts.find(a => a._id === selectedAccount)?.name}
+                        <button
+                          onClick={() => setSelectedAccount("all")}
+                          className="ml-1 hover:bg-destructive/20 rounded-full p-0.5"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    )}
+                    {selectedCategory !== "all" && (
+                      <Badge variant="secondary" className="flex items-center gap-1">
+                        Category: {categories.find(c => c._id === selectedCategory)?.name}
+                        <button
+                          onClick={() => setSelectedCategory("all")}
+                          className="ml-1 hover:bg-destructive/20 rounded-full p-0.5"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    )}
+                    {selectedType !== "all" && (
+                      <Badge variant="secondary" className="flex items-center gap-1">
+                        Type: {selectedType.charAt(0).toUpperCase() + selectedType.slice(1)}
+                        <button
+                          onClick={() => setSelectedType("all")}
+                          className="ml-1 hover:bg-destructive/20 rounded-full p-0.5"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    )}
+                    {selectedTransactionKind !== "all" && (
+                      <Badge variant="secondary" className="flex items-center gap-1">
+                        Show: {selectedTransactionKind === "transaction" ? "Transactions only" : "Transfers only"}
+                        <button
+                          onClick={() => setSelectedTransactionKind("all")}
+                          className="ml-1 hover:bg-destructive/20 rounded-full p-0.5"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    )}
+                    {(dateFrom || dateTo) && (
+                      <Badge variant="secondary" className="flex items-center gap-1">
+                        <CalendarIcon className="h-3 w-3" />
+                        {dateFrom && dateTo 
+                          ? `${format(dateFrom, "MMM dd")} - ${format(dateTo, "MMM dd")}`
+                          : dateFrom 
+                          ? `From ${format(dateFrom, "MMM dd")}`
+                          : `Until ${format(dateTo!, "MMM dd")}`
+                        }
+                        <button
+                          onClick={() => {
+                            setDateFrom(undefined);
+                            setDateTo(undefined);
+                          }}
+                          className="ml-1 hover:bg-destructive/20 rounded-full p-0.5"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    )}
+                    {(amountMin || amountMax) && (
+                      <Badge variant="secondary" className="flex items-center gap-1">
+                        <TrendingUp className="h-3 w-3" />
+                        {amountMin && amountMax 
+                          ? `$${amountMin} - $${amountMax}`
+                          : amountMin 
+                          ? `Min $${amountMin}`
+                          : `Max $${amountMax}`
+                        }
+                        <button
+                          onClick={() => {
+                            setAmountMin("");
+                            setAmountMax("");
+                          }}
+                          className="ml-1 hover:bg-destructive/20 rounded-full p-0.5"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Type and Kind Filters */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                {/* Transaction Type Filter */}
+                {/* Transaction Type Filter - Only for regular transactions */}
                 <div className="flex-1">
                   <Label className="text-sm font-medium">Transaction Type</Label>
                   <RadioGroup
@@ -365,16 +646,12 @@ export default function Transactions() {
                       <RadioGroupItem value="expense" id="type-expense" />
                       <Label htmlFor="type-expense">Expense</Label>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="transfer" id="type-transfer" />
-                      <Label htmlFor="type-transfer">Transfer</Label>
-                    </div>
                   </RadioGroup>
                 </div>
 
-                {/* Transaction Kind Filter */}
+                {/* Show/Hide Filter */}
                 <div className="flex-1">
-                  <Label className="text-sm font-medium">Kind</Label>
+                  <Label className="text-sm font-medium">Show</Label>
                   <RadioGroup
                     value={selectedTransactionKind}
                     onValueChange={setSelectedTransactionKind}
@@ -399,78 +676,153 @@ export default function Transactions() {
               {/* Advanced Filters */}
               <Collapsible open={showAdvancedFilters} onOpenChange={setShowAdvancedFilters} className="mt-4">
                 <CollapsibleContent>
-                  <div className="border-t border-border pt-4 mt-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                      {/* Date Range */}
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">Date From</label>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant="outline"
-                              className={cn("w-full justify-start text-left font-normal",
-                                !dateFrom && "text-muted-foreground"
-                              )}
-                            >
-                              <CalendarIcon className="mr-2 h-4 w-4" />
-                              {dateFrom ? format(dateFrom, "MMM dd, yyyy") : "Select date"}
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              selected={dateFrom}
-                              onSelect={setDateFrom}
-                              initialFocus
-                            />
-                          </PopoverContent>
-                        </Popover>
-                      </div>
+                  <div className="border-t border-border pt-4 mt-4 space-y-6">
+                    {/* Date Range with Quick Buttons */}
+                    <div>
+                      <h5 className="text-sm font-medium mb-3">Date Range</h5>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-muted-foreground">From</label>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                className={cn("w-full justify-start text-left font-normal",
+                                  !dateFrom && "text-muted-foreground"
+                                )}
+                              >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {dateFrom ? format(dateFrom, "MMM dd, yyyy") : "Select date"}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={dateFrom}
+                                onSelect={setDateFrom}
+                                initialFocus
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
 
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">Date To</label>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant="outline"
-                              className={cn("w-full justify-start text-left font-normal",
-                                !dateTo && "text-muted-foreground"
-                              )}
-                            >
-                              <CalendarIcon className="mr-2 h-4 w-4" />
-                              {dateTo ? format(dateTo, "MMM dd, yyyy") : "Select date"}
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              selected={dateTo}
-                              onSelect={setDateTo}
-                              initialFocus
-                            />
-                          </PopoverContent>
-                        </Popover>
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-muted-foreground">To</label>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                className={cn("w-full justify-start text-left font-normal",
+                                  !dateTo && "text-muted-foreground"
+                                )}
+                              >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {dateTo ? format(dateTo, "MMM dd, yyyy") : "Select date"}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={dateTo}
+                                onSelect={setDateTo}
+                                initialFocus
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
                       </div>
+                      {(dateFrom || dateTo) && (
+                        <div className="flex items-center gap-2 mt-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setDateFrom(undefined);
+                              setDateTo(undefined);
+                            }}
+                            className="h-6 text-xs text-muted-foreground hover:text-foreground"
+                          >
+                            <X className="h-3 w-3 mr-1" />
+                            Clear dates
+                          </Button>
+                        </div>
+                      )}
+                    </div>
 
-                      {/* Amount Range */}
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">Amount Min</label>
-                        <Input
-                          type="number"
-                          placeholder="0.00"
-                          value={amountMin}
-                          onChange={(e) => setAmountMin(e.target.value)}
-                        />
+                    {/* Amount Range */}
+                    <div>
+                      <h5 className="text-sm font-medium mb-3">Amount Range</h5>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-muted-foreground">Minimum</label>
+                          <Input
+                            type="number"
+                            placeholder="0.00"
+                            value={amountMin}
+                            onChange={(e) => setAmountMin(e.target.value)}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-muted-foreground">Maximum</label>
+                          <Input
+                            type="number"
+                            placeholder="999999.99"
+                            value={amountMax}
+                            onChange={(e) => setAmountMax(e.target.value)}
+                          />
+                        </div>
                       </div>
+                      {(amountMin || amountMax) && (
+                        <div className="flex items-center gap-2 mt-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setAmountMin("");
+                              setAmountMax("");
+                            }}
+                            className="h-6 text-xs text-muted-foreground hover:text-foreground"
+                          >
+                            <X className="h-3 w-3 mr-1" />
+                            Clear amounts
+                          </Button>
+                        </div>
+                      )}
+                    </div>
 
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">Amount Max</label>
-                        <Input
-                          type="number"
-                          placeholder="999999.99"
-                          value={amountMax}
-                          onChange={(e) => setAmountMax(e.target.value)}
-                        />
+                    {/* Enhanced Sorting */}
+                    <div>
+                      <h5 className="text-sm font-medium mb-3">Sort Results</h5>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-muted-foreground">Sort by</label>
+                          <Select value={sortBy} onValueChange={setSortBy}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="date">Date</SelectItem>
+                              <SelectItem value="amount">Amount</SelectItem>
+                              <SelectItem value="description">Description</SelectItem>
+                              <SelectItem value="account">Account</SelectItem>
+                              <SelectItem value="category">Category</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-muted-foreground">Order</label>
+                          <Select value={sortOrder} onValueChange={setSortOrder}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="desc">Newest first</SelectItem>
+                              <SelectItem value="asc">Oldest first</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
                     </div>
                   </div>
