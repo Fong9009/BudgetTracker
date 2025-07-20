@@ -11,7 +11,7 @@ dotenv.config({ path: envPath });
 import express, { type Request, Response, NextFunction } from "express";
 import cors from "cors";
 import helmet from "helmet";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import csrf from "csurf";
 import cookieParser from "cookie-parser";
 import { registerRoutes } from "./routes";
@@ -79,8 +79,13 @@ const limiter = rateLimit({
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
   keyGenerator: (req) => {
-    // Use X-Forwarded-For header when behind a proxy, fallback to req.ip
-    return req.headers['x-forwarded-for']?.toString().split(',')[0] || req.ip || 'unknown';
+    // Get IP from X-Forwarded-For header when behind a proxy
+    const forwardedIp = req.headers['x-forwarded-for']?.toString().split(',')[0];
+    if (forwardedIp) {
+      return ipKeyGenerator(forwardedIp);
+    }
+    // Use the built-in IP key generator for proper IPv6 handling
+    return ipKeyGenerator(req.ip || req.connection.remoteAddress || 'unknown');
   },
 });
 
@@ -98,8 +103,13 @@ const authLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => {
-    // Use X-Forwarded-For header when behind a proxy, fallback to req.ip
-    return req.headers['x-forwarded-for']?.toString().split(',')[0] || req.ip || 'unknown';
+    // Get IP from X-Forwarded-For header when behind a proxy
+    const forwardedIp = req.headers['x-forwarded-for']?.toString().split(',')[0];
+    if (forwardedIp) {
+      return ipKeyGenerator(forwardedIp);
+    }
+    // Use the built-in IP key generator for proper IPv6 handling
+    return ipKeyGenerator(req.ip || req.connection.remoteAddress || 'unknown');
   },
 });
 

@@ -155,7 +155,8 @@ export const validateIP = (req: Request, res: Response, next: NextFunction) => {
 // Security logging middleware
 export const securityLogging = (req: Request, res: Response, next: NextFunction) => {
   // Get IP from X-Forwarded-For header when behind a proxy, fallback to req.ip
-  const ip = req.headers['x-forwarded-for']?.toString().split(',')[0] || req.ip || req.connection.remoteAddress;
+  const forwardedIp = req.headers['x-forwarded-for']?.toString().split(',')[0];
+  const ip = forwardedIp || req.ip || req.connection.remoteAddress;
   const userAgent = req.headers['user-agent'] || 'Unknown';
   const method = req.method;
   const path = req.path;
