@@ -33,6 +33,7 @@ import { Label } from "@/components/ui/label";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { getValidToken } from "@/lib/queryClient";
+import { optimisticUpdates } from "@/lib/optimisticUpdates";
 import type { Account, Category } from "@shared/schema";
 
 const formSchema = z.object({
@@ -119,12 +120,36 @@ export function AddTransactionModal({ open, onOpenChange }: AddTransactionModalP
 
   const createMutation = useMutation({
     mutationFn: async (data: FormData) => {
-      const response = await apiRequest("POST", "/api/transactions", data);
-      return response;
+      // Convert string amount to number for optimistic update
+      const transactionData = {
+        ...data,
+        amount: parseFloat(data.amount),
+        date: new Date(data.date),
+        isArchived: false,
+      };
+      
+      // Add optimistic update for instant feedback
+      const optimisticTransaction = optimisticUpdates.addTransaction(transactionData);
+      
+      try {
+        const response = await apiRequest("POST", "/api/transactions", data);
+        
+        // Replace optimistic data with real data
+        queryClient.setQueryData(['/api/transactions'], (old: any[] = []) => {
+          return old.map(item => 
+            item._id === optimisticTransaction._id ? response : item
+          );
+        });
+        
+        return response;
+      } catch (error) {
+        // Remove optimistic update on error
+        optimisticUpdates.removeOptimistic('transaction', optimisticTransaction._id);
+        throw error;
+      }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/transactions"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/accounts"] });
+      // Only invalidate analytics to refresh calculations
       queryClient.invalidateQueries({ queryKey: ["/api/analytics"] });
       toast({
         title: "Success",

@@ -30,6 +30,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { optimisticUpdates } from "@/lib/optimisticUpdates";
 
 const formSchema = z.object({
   name: z.string().min(1, "Category name is required"),
@@ -39,31 +40,30 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
-const iconOptions = [
-  { value: "fas fa-tag", label: "General", icon: "fas fa-tag" },
-  { value: "fas fa-utensils", label: "Food & Dining", icon: "fas fa-utensils" },
-  { value: "fas fa-car", label: "Transportation", icon: "fas fa-car" },
-  { value: "fas fa-film", label: "Entertainment", icon: "fas fa-film" },
-  { value: "fas fa-shopping-bag", label: "Shopping", icon: "fas fa-shopping-bag" },
-  { value: "fas fa-bolt", label: "Utilities", icon: "fas fa-bolt" },
-  { value: "fas fa-dollar-sign", label: "Income", icon: "fas fa-dollar-sign" },
-  { value: "fas fa-heartbeat", label: "Healthcare", icon: "fas fa-heartbeat" },
-  { value: "fas fa-graduation-cap", label: "Education", icon: "fas fa-graduation-cap" },
-  { value: "fas fa-home", label: "Housing", icon: "fas fa-home" },
-  { value: "fas fa-gamepad", label: "Gaming", icon: "fas fa-gamepad" },
-  { value: "fas fa-plane", label: "Travel", icon: "fas fa-plane" },
-  { value: "fas fa-gift", label: "Gifts", icon: "fas fa-gift" },
-];
-
-const colorOptions = [
-  "#3B82F6", "#10B981", "#F59E0B", "#8B5CF6", "#EF4444", "#059669",
-  "#EC4899", "#6366F1", "#F97316", "#84CC16", "#06B6D4", "#8B5A2B",
-];
-
 interface AddCategoryModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
+
+const iconOptions = [
+  { value: "fas fa-tag", label: "Tag" },
+  { value: "fas fa-utensils", label: "Food" },
+  { value: "fas fa-car", label: "Transport" },
+  { value: "fas fa-home", label: "Home" },
+  { value: "fas fa-shopping-cart", label: "Shopping" },
+  { value: "fas fa-gamepad", label: "Entertainment" },
+  { value: "fas fa-heartbeat", label: "Health" },
+  { value: "fas fa-graduation-cap", label: "Education" },
+  { value: "fas fa-plane", label: "Travel" },
+  { value: "fas fa-gift", label: "Gifts" },
+  { value: "fas fa-dollar-sign", label: "Income" },
+  { value: "fas fa-piggy-bank", label: "Savings" },
+];
+
+const colorOptions = [
+  "#3B82F6", "#EF4444", "#10B981", "#F59E0B", "#8B5CF6",
+  "#EC4899", "#06B6D4", "#84CC16", "#F97316", "#6366F1",
+];
 
 export function AddCategoryModal({ open, onOpenChange }: AddCategoryModalProps) {
   const { toast } = useToast();
@@ -83,13 +83,35 @@ export function AddCategoryModal({ open, onOpenChange }: AddCategoryModalProps) 
     mutationFn: async (data: FormData) => {
       console.log("Creating category with data:", data);
       setIsSubmitting(true);
-      const response = await apiRequest("POST", "/api/categories", data);
-      console.log("Category creation response:", response);
-      return response;
+      
+      // Add optimistic update for instant feedback
+      const categoryData = {
+        ...data,
+        isArchived: false,
+      };
+      
+      const optimisticCategory = optimisticUpdates.addCategory(categoryData);
+      
+      try {
+        const response = await apiRequest("POST", "/api/categories", data);
+        console.log("Category creation response:", response);
+        
+        // Replace optimistic data with real data
+        queryClient.setQueryData(['/api/categories'], (old: any[] = []) => {
+          return old.map(item => 
+            item._id === optimisticCategory._id ? response : item
+          );
+        });
+        
+        return response;
+      } catch (error) {
+        // Remove optimistic update on error
+        optimisticUpdates.removeOptimistic('category', optimisticCategory._id);
+        throw error;
+      }
     },
     onSuccess: () => {
       console.log("Category creation successful");
-      queryClient.invalidateQueries({ queryKey: ["/api/categories"] });
       toast({
         title: "Success",
         description: "Category added successfully",
@@ -121,20 +143,14 @@ export function AddCategoryModal({ open, onOpenChange }: AddCategoryModalProps) 
   };
 
   return (
-    <Dialog open={open} onOpenChange={(newOpen) => {
-      if (!newOpen) {
-        setIsSubmitting(false);
-      }
-      onOpenChange(newOpen);
-    }}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Add New Category</DialogTitle>
           <DialogDescription>
-            Create a new category for organizing your transactions.
+            Create a new category to organize your transactions.
           </DialogDescription>
         </DialogHeader>
-
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
@@ -153,6 +169,32 @@ export function AddCategoryModal({ open, onOpenChange }: AddCategoryModalProps) 
 
             <FormField
               control={form.control}
+              name="color"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Color</FormLabel>
+                  <div className="grid grid-cols-5 gap-2">
+                    {colorOptions.map((color) => (
+                      <button
+                        key={color}
+                        type="button"
+                        className={`w-8 h-8 rounded-full border-2 ${
+                          field.value === color
+                            ? "border-gray-800"
+                            : "border-gray-300"
+                        }`}
+                        style={{ backgroundColor: color }}
+                        onClick={() => field.onChange(color)}
+                      />
+                    ))}
+                  </div>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
               name="icon"
               render={({ field }) => (
                 <FormItem>
@@ -164,42 +206,16 @@ export function AddCategoryModal({ open, onOpenChange }: AddCategoryModalProps) 
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {iconOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          <div className="flex items-center">
-                            <i className={`${option.icon} mr-2`} />
-                            {option.label}
+                      {iconOptions.map((icon) => (
+                        <SelectItem key={icon.value} value={icon.value}>
+                          <div className="flex items-center gap-2">
+                            <i className={icon.value}></i>
+                            {icon.label}
                           </div>
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="color"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Color</FormLabel>
-                  <FormControl>
-                    <div className="flex flex-wrap gap-2">
-                      {colorOptions.map((color) => (
-                        <button
-                          key={color}
-                          type="button"
-                          className={`w-8 h-8 rounded-full border-2 ${
-                            field.value === color ? "border-foreground" : "border-border"
-                          }`}
-                          style={{ backgroundColor: color }}
-                          onClick={() => field.onChange(color)}
-                        />
-                      ))}
-                    </div>
-                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}

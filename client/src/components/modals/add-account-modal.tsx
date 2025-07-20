@@ -29,6 +29,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { optimisticUpdates } from "@/lib/optimisticUpdates";
 
 const formSchema = z.object({
   name: z.string().min(1, "Account name is required"),
@@ -60,11 +61,35 @@ export function AddAccountModal({ open, onOpenChange }: AddAccountModalProps) {
 
   const createMutation = useMutation({
     mutationFn: async (data: FormData) => {
-      const response = await apiRequest("POST", "/api/accounts", data);
-      return response;
+      // Convert string balance to number for optimistic update
+      const accountData = {
+        ...data,
+        balance: parseFloat(data.balance),
+        isArchived: false,
+      };
+      
+      // Add optimistic update for instant feedback
+      const optimisticAccount = optimisticUpdates.addAccount(accountData);
+      
+      try {
+        const response = await apiRequest("POST", "/api/accounts", data);
+        
+        // Replace optimistic data with real data
+        queryClient.setQueryData(['/api/accounts'], (old: any[] = []) => {
+          return old.map(item => 
+            item._id === optimisticAccount._id ? response : item
+          );
+        });
+        
+        return response;
+      } catch (error) {
+        // Remove optimistic update on error
+        optimisticUpdates.removeOptimistic('account', optimisticAccount._id);
+        throw error;
+      }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/accounts"] });
+      // Only invalidate analytics to refresh calculations
       queryClient.invalidateQueries({ queryKey: ["/api/analytics"] });
       toast({
         title: "Success",
@@ -96,7 +121,6 @@ export function AddAccountModal({ open, onOpenChange }: AddAccountModalProps) {
             Create a new account to track your finances.
           </DialogDescription>
         </DialogHeader>
-
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
@@ -106,7 +130,7 @@ export function AddAccountModal({ open, onOpenChange }: AddAccountModalProps) {
                 <FormItem>
                   <FormLabel>Account Name</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., ABA Checking" {...field} />
+                    <Input placeholder="e.g., Chase Checking" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -126,8 +150,8 @@ export function AddAccountModal({ open, onOpenChange }: AddAccountModalProps) {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="checking">Checking Account</SelectItem>
-                      <SelectItem value="savings">Savings Account</SelectItem>
+                      <SelectItem value="checking">Checking</SelectItem>
+                      <SelectItem value="savings">Savings</SelectItem>
                       <SelectItem value="credit">Credit Card</SelectItem>
                     </SelectContent>
                   </Select>
@@ -143,16 +167,12 @@ export function AddAccountModal({ open, onOpenChange }: AddAccountModalProps) {
                 <FormItem>
                   <FormLabel>Initial Balance</FormLabel>
                   <FormControl>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">
-                        $
-                      </span>
-                      <Input
-                        placeholder="0.00"
-                        className="pl-7"
-                        {...field}
-                      />
-                    </div>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="0.00"
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
