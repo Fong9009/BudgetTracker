@@ -175,6 +175,64 @@ export const usePWA = () => {
     setDeferredPrompt(null);
   };
 
+  const registerBackgroundSync = async () => {
+    if ('serviceWorker' in navigator && 'sync' in (window.ServiceWorkerRegistration.prototype as any)) {
+      try {
+        const registration = await navigator.serviceWorker.getRegistration();
+        if (registration) {
+          await (registration as any).sync.register('background-sync');
+          console.log('PWA: Background sync registered');
+          return true;
+        }
+      } catch (error) {
+        console.error('PWA: Failed to register background sync:', error);
+      }
+    }
+    return false;
+  };
+
+  const storeOfflineData = async (key: string, data: any) => {
+    try {
+      const db = await openIndexedDB();
+      const transaction = db.transaction(['offlineData'], 'readwrite');
+      const store = transaction.objectStore('offlineData');
+      await store.put({ key, value: data, timestamp: Date.now() });
+      console.log('PWA: Stored offline data:', key);
+    } catch (error) {
+      console.error('PWA: Failed to store offline data:', error);
+    }
+  };
+
+  const getOfflineData = async (key: string) => {
+    try {
+      const db = await openIndexedDB();
+      const transaction = db.transaction(['offlineData'], 'readonly');
+      const store = transaction.objectStore('offlineData');
+      const result = await store.get(key);
+      return result ? (result as any).value : null;
+    } catch (error) {
+      console.error('PWA: Failed to get offline data:', error);
+      return null;
+    }
+  };
+
+  const openIndexedDB = () => {
+    return new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('FinanceTrackerDB', 1);
+      
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
+      
+      request.onupgradeneeded = (event) => {
+        const db = (event.target as IDBOpenDBRequest).result;
+        
+        if (!db.objectStoreNames.contains('offlineData')) {
+          db.createObjectStore('offlineData', { keyPath: 'key' });
+        }
+      };
+    });
+  };
+
   return {
     isInstallable,
     isInstalled,
@@ -184,6 +242,9 @@ export const usePWA = () => {
     checkForUpdate,
     requestNotificationPermission,
     showNotification,
-    resetPWAState
+    resetPWAState,
+    registerBackgroundSync,
+    storeOfflineData,
+    getOfflineData
   };
 }; 

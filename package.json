@@ -4,12 +4,17 @@
   "type": "module",
   "license": "MIT",
   "scripts": {
-    "dev": "tsx --watch server/index.ts",
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "tsx watch server/index.ts",
+    "dev:client": "vite",
     "build": "tsc && vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist/server && mkdir -p dist/server/public && cp -r dist/public/* dist/server/public/",
-    "start": "NODE_ENV=production node dist/server/index.js",
+    "start": "node dist/server/index.js",
     "preview": "vite preview",
-    "test": "vitest",
-    "test:ui": "vitest --ui"
+    "type-check": "tsc --noEmit",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "railway:deploy": "railway up",
+    "railway:logs": "railway logs",
+    "railway:status": "railway status"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
