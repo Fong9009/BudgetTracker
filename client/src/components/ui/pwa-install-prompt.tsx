@@ -9,15 +9,15 @@ interface PWAInstallPromptProps {
 }
 
 export const PWAInstallPrompt: React.FC<PWAInstallPromptProps> = ({ onDismiss }) => {
-  const { isInstallable, installApp } = usePWA();
+  const { isInstallable, isInstalled, isStandalone, installApp, resetPWAState } = usePWA();
   const [isInstalling, setIsInstalling] = useState(false);
   const [isDismissed, setIsDismissed] = useState(false);
 
-  console.log('PWA Install Prompt: isInstallable:', isInstallable, 'isDismissed:', isDismissed);
+  console.log('PWA Install Prompt: isInstallable:', isInstallable, 'isInstalled:', isInstalled, 'isStandalone:', isStandalone, 'isDismissed:', isDismissed);
 
-  // Don't show if not installable or already dismissed
-  if (!isInstallable || isDismissed) {
-    console.log('PWA Install Prompt: Not showing (installable:', isInstallable, 'dismissed:', isDismissed, ')');
+  // Don't show if not installable, already installed, or dismissed
+  if (!isInstallable || isInstalled || isDismissed) {
+    console.log('PWA Install Prompt: Not showing (installable:', isInstallable, 'installed:', isInstalled, 'dismissed:', isDismissed, ')');
     return null;
   }
 
@@ -98,6 +98,21 @@ export const PWAInstallPrompt: React.FC<PWAInstallPromptProps> = ({ onDismiss })
               Later
             </Button>
           </div>
+          
+          {/* Debug info (only in development) */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="mt-2 text-xs text-gray-500">
+              <div>Debug: Installable: {isInstallable.toString()}</div>
+              <div>Debug: Installed: {isInstalled.toString()}</div>
+              <div>Debug: Standalone: {isStandalone.toString()}</div>
+              <button 
+                onClick={resetPWAState}
+                className="text-blue-500 underline"
+              >
+                Reset PWA State
+              </button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

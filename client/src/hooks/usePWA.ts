@@ -20,7 +20,9 @@ export const usePWA = () => {
     console.log('PWA: Initializing...');
     
     // Check if app is installed (running in standalone mode)
-    const isStandaloneMode = window.matchMedia('(display-mode: standalone)').matches;
+    const isStandaloneMode = window.matchMedia('(display-mode: standalone)').matches || 
+                            window.matchMedia('(display-mode: fullscreen)').matches ||
+                            window.matchMedia('(display-mode: minimal-ui)').matches;
     setIsStandalone(isStandaloneMode);
     console.log('PWA: Standalone mode:', isStandaloneMode);
 
@@ -72,9 +74,12 @@ export const usePWA = () => {
 
     // Check if already installed
     if (isStandaloneMode) {
-      console.log('PWA: App already installed');
+      console.log('PWA: App already installed (standalone mode detected)');
       setIsInstalled(true);
       setIsInstallable(false);
+    } else {
+      console.log('PWA: App not installed (running in browser mode)');
+      setIsInstalled(false);
     }
 
     // Check if PWA is installable (for debugging)
@@ -162,6 +167,14 @@ export const usePWA = () => {
     }
   };
 
+  const resetPWAState = () => {
+    console.log('PWA: Resetting state for testing');
+    localStorage.removeItem('pwa-install-dismissed');
+    setIsInstalled(false);
+    setIsInstallable(false);
+    setDeferredPrompt(null);
+  };
+
   return {
     isInstallable,
     isInstalled,
@@ -170,6 +183,7 @@ export const usePWA = () => {
     installApp,
     checkForUpdate,
     requestNotificationPermission,
-    showNotification
+    showNotification,
+    resetPWAState
   };
 }; 
