@@ -16,11 +16,14 @@ import { AddCategoryModal } from "@/components/modals/add-category-modal";
 import { EditCategoryModal } from "@/components/modals/edit-category-modal";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import { getValidToken } from "@/lib/queryClient";
 import { Plus, Edit2, Trash2, Archive } from "lucide-react";
 import { useLocation } from "wouter";
 import type { Category } from "@shared/schema";
 
 export default function Categories() {
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [showEditCategory, setShowEditCategory] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
@@ -31,6 +34,26 @@ export default function Categories() {
 
   const { data: categories = [], isLoading } = useQuery<Category[]>({
     queryKey: ["/api/categories"],
+    enabled: isAuthenticated && !authLoading,
+    queryFn: async () => {
+      const token = await getValidToken();
+      if (!token) return [];
+      
+      try {
+        const response = await fetch("/api/categories", {
+          headers: { Authorization: `Bearer ${token}` },
+          credentials: "include",
+        });
+        
+        if (response.status === 401) return [];
+        if (!response.ok) throw new Error("Failed to fetch categories");
+        
+        return response.json();
+      } catch (error) {
+        console.error("Error fetching categories:", error);
+        return [];
+      }
+    },
   });
 
   const deleteMutation = useMutation({

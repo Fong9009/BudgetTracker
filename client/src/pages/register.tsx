@@ -5,16 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { apiRequest } from "@/lib/queryClient";
-import { useMutation } from "@tanstack/react-query";
-import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 
 interface RegisterProps {
   onSwitchToLogin: () => void;
 }
 
 export default function Register({ onSwitchToLogin }: RegisterProps) {
-  const { toast } = useToast();
+  const { register } = useAuth();
   
   const form = useForm<RegisterUser>({
     resolver: zodResolver(registerUserSchema),
@@ -26,30 +24,13 @@ export default function Register({ onSwitchToLogin }: RegisterProps) {
     },
   });
 
-  const registerMutation = useMutation({
-    mutationFn: async (data: RegisterUser) => {
-      const response = await apiRequest("POST", "/api/auth/register", data);
-      return response;
-    },
-    onSuccess: () => {
-      toast({
-        title: "Success",
-        description: "Account created! Please sign in.",
-        variant: "success",
-      });
-      onSwitchToLogin();
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Registration failed",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const onSubmit = (data: RegisterUser) => {
-    registerMutation.mutate(data);
+  const onSubmit = async (data: RegisterUser) => {
+    const result = await register(data.username, data.email, data.password, data.confirmPassword);
+    if (result.success) {
+      // Registration successful, user will be automatically logged in and redirected
+      // No need to manually switch to login since useAuth handles the redirect
+    }
+    // Error handling is done in the useAuth hook
   };
 
   return (
@@ -120,9 +101,9 @@ export default function Register({ onSwitchToLogin }: RegisterProps) {
               <Button 
                 type="submit" 
                 className="w-full"
-                disabled={registerMutation.isPending}
+                disabled={form.formState.isSubmitting}
               >
-                {registerMutation.isPending ? "Creating account..." : "Create Account"}
+                {form.formState.isSubmitting ? "Creating account..." : "Create Account"}
               </Button>
             </form>
           </Form>

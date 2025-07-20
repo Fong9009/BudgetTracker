@@ -18,6 +18,7 @@ import { formatCurrency, formatDateFull, getTransactionTypeColor, groupTransferT
 import { RotateCcw, Trash2, ArrowLeft, ArrowRightLeft } from "lucide-react";
 import { useLocation } from "wouter";
 import type { TransactionWithDetails } from "@shared/schema";
+import { getValidToken } from "@/lib/queryClient";
 
 export default function ArchivedTransactions() {
   const [restoreTransaction, setRestoreTransaction] = useState<string | null>(null);
@@ -28,6 +29,25 @@ export default function ArchivedTransactions() {
 
   const { data: archivedTransactions = [], isLoading } = useQuery<TransactionWithDetails[]>({
     queryKey: ["/api/transactions/archived"],
+    queryFn: async () => {
+      const token = await getValidToken();
+      if (!token) return [];
+      
+      try {
+        const response = await fetch("/api/transactions/archived", {
+          headers: { Authorization: `Bearer ${token}` },
+          credentials: "include",
+        });
+        
+        if (response.status === 401) return [];
+        if (!response.ok) throw new Error("Failed to fetch archived transactions");
+        
+        return response.json();
+      } catch (error) {
+        console.error("Error fetching archived transactions:", error);
+        return [];
+      }
+    },
   });
 
   const restoreMutation = useMutation({

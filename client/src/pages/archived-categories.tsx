@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { getValidToken } from "@/lib/queryClient";
 import { RotateCcw, Trash2, ArrowLeft } from "lucide-react";
 import { useLocation } from "wouter";
 import type { Category } from "@shared/schema";
@@ -27,6 +28,25 @@ export default function ArchivedCategories() {
 
   const { data: archivedCategories = [], isLoading } = useQuery<Category[]>({
     queryKey: ["/api/categories/archived"],
+    queryFn: async () => {
+      const token = await getValidToken();
+      if (!token) return [];
+      
+      try {
+        const response = await fetch("/api/categories/archived", {
+          headers: { Authorization: `Bearer ${token}` },
+          credentials: "include",
+        });
+        
+        if (response.status === 401) return [];
+        if (!response.ok) throw new Error("Failed to fetch archived categories");
+        
+        return response.json();
+      } catch (error) {
+        console.error("Error fetching archived categories:", error);
+        return [];
+      }
+    },
   });
 
   const restoreMutation = useMutation({

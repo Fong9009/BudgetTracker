@@ -69,25 +69,25 @@ export function MobileMenu({ className }: MobileMenuProps) {
                 {navigation.map((item) => {
                   const isActive = location === item.href;
                   return (
-                    <Link key={item.name} href={item.href}>
-                      <a
+                    <Link 
+                      key={item.name} 
+                      href={item.href}
+                      className={cn(
+                        "group flex items-center px-2 py-2 text-base font-medium rounded-md transition-colors",
+                        isActive
+                          ? "bg-primary/10 text-primary"
+                          : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                      )}
+                      onClick={closeMenu}
+                    >
+                      <i
                         className={cn(
-                          "group flex items-center px-2 py-2 text-base font-medium rounded-md transition-colors",
-                          isActive
-                            ? "bg-primary/10 text-primary"
-                            : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                          item.icon,
+                          "mr-4 text-sm",
+                          isActive ? "text-primary" : "text-muted-foreground"
                         )}
-                        onClick={closeMenu}
-                      >
-                        <i
-                          className={cn(
-                            item.icon,
-                            "mr-4 text-sm",
-                            isActive ? "text-primary" : "text-muted-foreground"
-                          )}
-                        />
-                        {item.name}
-                      </a>
+                      />
+                      {item.name}
                     </Link>
                   );
                 })}

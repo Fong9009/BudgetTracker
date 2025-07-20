@@ -30,7 +30,7 @@ interface MailOptions {
 
 export const sendEmail = async (options: MailOptions) => {
   const mailOptions = {
-    from: `"BudgetTracker" <${process.env.MAIL_USER}>`,
+    from: `"FinanceTracker" <${process.env.MAIL_USER}>`,
     ...options,
   };
 

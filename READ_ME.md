@@ -1,4 +1,4 @@
-# Budget Tracker
+# Finance Tracker
 
 A comprehensive personal finance management application built with the MERN stack (MongoDB, Express.js, React, Node.js) and TypeScript. This application helps users track their income, expenses, and manage their financial accounts with a modern, responsive interface.
 

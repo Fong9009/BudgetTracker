@@ -36,7 +36,7 @@ const ProtectedRoute = ({ component: Component, ...rest }: any) => {
 };
 
 function App() {
-  const { isAuthenticated, login, logout, isLoading } = useAuth();
+  const { isAuthenticated, logout, isLoading } = useAuth();
   const [, setLocation] = useLocation();
 
   // Show loading screen during initial authentication check
@@ -52,7 +52,7 @@ function App() {
     return (
       <Switch>
         <Route path="/login">
-          <Login onLogin={login} onSwitchToRegister={() => setLocation('/register')} onForgotPassword={() => setLocation('/forgot-password')} />
+          <Login onSwitchToRegister={() => setLocation('/register')} onForgotPassword={() => setLocation('/forgot-password')} />
         </Route>
         <Route path="/register">
           <Register onSwitchToLogin={() => setLocation('/login')} />

@@ -1,9 +1,7 @@
-const CACHE_NAME = 'budget-tracker-v1';
+const CACHE_NAME = 'finance-tracker-v1';
 const urlsToCache = [
   '/',
   '/index.html',
-  '/static/js/bundle.js',
-  '/static/css/main.css',
   '/manifest.json'
 ];
 
@@ -13,13 +11,31 @@ self.addEventListener('install', (event) => {
     caches.open(CACHE_NAME)
       .then((cache) => {
         console.log('Opened cache');
-        return cache.addAll(urlsToCache);
+        // Only cache resources that exist
+        return Promise.allSettled(
+          urlsToCache.map(url => 
+            cache.add(url).catch(error => {
+              console.log('Failed to cache:', url, error);
+              return null;
+            })
+          )
+        );
       })
   );
 });
 
 // Fetch event - serve from cache when offline
 self.addEventListener('fetch', (event) => {
+  // Skip non-GET requests
+  if (event.request.method !== 'GET') {
+    return;
+  }
+
+  // Skip API requests
+  if (event.request.url.includes('/api/')) {
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
@@ -27,9 +43,15 @@ self.addEventListener('fetch', (event) => {
         if (response) {
           return response;
         }
-        return fetch(event.request);
-      }
-    )
+        return fetch(event.request).catch(error => {
+          console.log('Fetch failed:', event.request.url, error);
+          // Return a fallback response for navigation requests
+          if (event.request.destination === 'document') {
+            return caches.match('/index.html');
+          }
+          return new Response('Network error', { status: 503 });
+        });
+      })
   );
 });
 

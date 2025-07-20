@@ -8,8 +8,10 @@ import { AddAccountModal } from "@/components/modals/add-account-modal";
 import { TransferModal } from "@/components/modals/transfer-modal";
 import { ExportModal } from "@/components/export/export-modal";
 import { formatCurrency, formatDate, getAccountTypeIcon, getAccountTypeColor, getTransactionTypeColor, groupTransferTransactions } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
 import { Plus, Download, ArrowRightLeft, CreditCard, Zap } from "lucide-react";
 import type { TransactionWithDetails, Account } from "@shared/schema";
+import { getValidToken } from "@/lib/queryClient";
 
 interface AnalyticsSummary {
   totalBalance: string;
@@ -28,6 +30,7 @@ interface CategorySpending {
 }
 
 export default function Dashboard() {
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [showAddTransaction, setShowAddTransaction] = useState(false);
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
@@ -35,21 +38,101 @@ export default function Dashboard() {
 
   const { data: accounts = [], isLoading: accountsLoading } = useQuery<Account[]>({
     queryKey: ["/api/accounts"],
+    enabled: isAuthenticated && !authLoading,
+    queryFn: async () => {
+      const token = await getValidToken();
+      if (!token) return [];
+      
+      try {
+        const response = await fetch("/api/accounts", {
+          headers: { Authorization: `Bearer ${token}` },
+          credentials: "include",
+        });
+        
+        if (response.status === 401) return [];
+        if (!response.ok) throw new Error("Failed to fetch accounts");
+        
+        return response.json();
+      } catch (error) {
+        console.error("Error fetching accounts:", error);
+        return [];
+      }
+    },
   });
 
   const { data: transactions = [], isLoading: transactionsLoading } = useQuery<TransactionWithDetails[]>({
     queryKey: ["/api/transactions"],
+    enabled: isAuthenticated && !authLoading,
+    queryFn: async () => {
+      const token = await getValidToken();
+      if (!token) return [];
+      
+      try {
+        const response = await fetch("/api/transactions", {
+          headers: { Authorization: `Bearer ${token}` },
+          credentials: "include",
+        });
+        
+        if (response.status === 401) return [];
+        if (!response.ok) throw new Error("Failed to fetch transactions");
+        
+        return response.json();
+      } catch (error) {
+        console.error("Error fetching transactions:", error);
+        return [];
+      }
+    },
   });
 
   const { data: analytics, isLoading: analyticsLoading } = useQuery<AnalyticsSummary>({
     queryKey: ["/api/analytics/summary"],
+    enabled: isAuthenticated && !authLoading,
+    queryFn: async () => {
+      const token = await getValidToken();
+      if (!token) return null;
+      
+      try {
+        const response = await fetch("/api/analytics/summary", {
+          headers: { Authorization: `Bearer ${token}` },
+          credentials: "include",
+        });
+        
+        if (response.status === 401) return null;
+        if (!response.ok) throw new Error("Failed to fetch analytics");
+        
+        return response.json();
+      } catch (error) {
+        console.error("Error fetching analytics:", error);
+        return null;
+      }
+    },
   });
 
   const { data: categorySpending = [], isLoading: categoriesLoading } = useQuery<CategorySpending[]>({
     queryKey: ["/api/analytics/spending-by-category"],
+    enabled: isAuthenticated && !authLoading,
+    queryFn: async () => {
+      const token = await getValidToken();
+      if (!token) return [];
+      
+      try {
+        const response = await fetch("/api/analytics/spending-by-category", {
+          headers: { Authorization: `Bearer ${token}` },
+          credentials: "include",
+        });
+        
+        if (response.status === 401) return [];
+        if (!response.ok) throw new Error("Failed to fetch category spending");
+        
+        return response.json();
+      } catch (error) {
+        console.error("Error fetching category spending:", error);
+        return [];
+      }
+    },
   });
 
-  const filteredCategorySpending = categorySpending.filter(c => c.name !== 'Transfer');
+  const filteredCategorySpending = (categorySpending || []).filter(c => c.name !== 'Transfer');
   
   // Safety check for transactions
   const groupedTransactions = transactions ? groupTransferTransactions(transactions) : [];
@@ -59,6 +142,21 @@ export default function Dashboard() {
   const recentTransfers = groupedTransactions
     .filter(item => item.type === 'transfer')
     .slice(0, 4);
+
+  // Show loading state while authentication is being determined
+  if (authLoading) {
+    return (
+      <div className="flex-1 relative overflow-y-auto focus:outline-none">
+        <div className="py-6">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
+            <div className="flex items-center justify-center h-64">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 relative overflow-y-auto focus:outline-none">
@@ -182,7 +280,7 @@ export default function Dashboard() {
                       </div>
                     ))}
                   </div>
-                ) : accounts.length === 0 ? (
+                ) : (accounts || []).length === 0 ? (
                   <div className="text-center py-8">
                     <p className="text-muted-foreground">No accounts yet.</p>
                     <Button
@@ -195,7 +293,7 @@ export default function Dashboard() {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {accounts.map((account) => (
+                    {(accounts || []).map((account) => (
                       <div
                         key={account._id}
                         className="flex items-center justify-between p-4 bg-muted/50 rounded-lg"

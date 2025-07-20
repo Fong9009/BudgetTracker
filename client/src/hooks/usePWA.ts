@@ -17,11 +17,34 @@ export const usePWA = () => {
   const [isStandalone, setIsStandalone] = useState(false);
 
   useEffect(() => {
+    console.log('PWA: Initializing...');
+    
     // Check if app is installed (running in standalone mode)
-    setIsStandalone(window.matchMedia('(display-mode: standalone)').matches);
+    const isStandaloneMode = window.matchMedia('(display-mode: standalone)').matches;
+    setIsStandalone(isStandaloneMode);
+    console.log('PWA: Standalone mode:', isStandaloneMode);
+
+    // Check if user has recently dismissed the install prompt
+    const dismissedTime = localStorage.getItem('pwa-install-dismissed');
+    if (dismissedTime) {
+      const dismissedDate = parseInt(dismissedTime);
+      const now = Date.now();
+      const oneDay = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+      
+      // If dismissed less than 24 hours ago, don't show the prompt
+      if (now - dismissedDate < oneDay) {
+        console.log('PWA: Install prompt recently dismissed, not showing');
+        return;
+      } else {
+        // Clear old dismissal
+        localStorage.removeItem('pwa-install-dismissed');
+        console.log('PWA: Cleared old dismissal');
+      }
+    }
 
     // Listen for beforeinstallprompt event
     const handleBeforeInstallPrompt = (e: Event) => {
+      console.log('PWA: beforeinstallprompt event fired');
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
       setIsInstallable(true);
@@ -29,9 +52,12 @@ export const usePWA = () => {
 
     // Listen for appinstalled event
     const handleAppInstalled = () => {
+      console.log('PWA: App installed event fired');
       setIsInstalled(true);
       setIsInstallable(false);
       setDeferredPrompt(null);
+      // Clear any dismissal when app is installed
+      localStorage.removeItem('pwa-install-dismissed');
     };
 
     // Listen for online/offline status
@@ -45,8 +71,17 @@ export const usePWA = () => {
     window.addEventListener('offline', handleOffline);
 
     // Check if already installed
-    if (window.matchMedia('(display-mode: standalone)').matches) {
+    if (isStandaloneMode) {
+      console.log('PWA: App already installed');
       setIsInstalled(true);
+      setIsInstallable(false);
+    }
+
+    // Check if PWA is installable (for debugging)
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistration().then(registration => {
+        console.log('PWA: Service Worker registration:', registration);
+      });
     }
 
     return () => {
@@ -58,30 +93,42 @@ export const usePWA = () => {
   }, []);
 
   const installApp = async () => {
+    console.log('PWA: installApp called, deferredPrompt:', !!deferredPrompt);
+    
     if (!deferredPrompt) {
-      console.log('No install prompt available');
+      console.log('PWA: No install prompt available');
       return false;
     }
 
     try {
+      console.log('PWA: Showing install prompt...');
       // Show the install prompt
       await deferredPrompt.prompt();
       
+      console.log('PWA: Waiting for user choice...');
       // Wait for the user to respond to the prompt
       const { outcome } = await deferredPrompt.userChoice;
       
+      console.log('PWA: User choice outcome:', outcome);
+      
       if (outcome === 'accepted') {
-        console.log('User accepted the install prompt');
+        console.log('PWA: User accepted the install prompt');
         setIsInstalled(true);
         setIsInstallable(false);
         setDeferredPrompt(null);
+        // Clear any dismissal when app is installed
+        localStorage.removeItem('pwa-install-dismissed');
         return true;
       } else {
-        console.log('User dismissed the install prompt');
+        console.log('PWA: User dismissed the install prompt');
+        // Store dismissal for 24 hours
+        localStorage.setItem('pwa-install-dismissed', Date.now().toString());
+        setIsInstallable(false);
+        setDeferredPrompt(null);
         return false;
       }
     } catch (error) {
-      console.error('Error installing app:', error);
+      console.error('PWA: Error installing app:', error);
       return false;
     }
   };

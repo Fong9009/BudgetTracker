@@ -35,6 +35,7 @@ import type { Account } from "@shared/schema";
 import { CalendarIcon, ArrowRightLeft } from "lucide-react";
 import { format } from "date-fns";
 import { cn, formatCurrency } from "@/lib/utils";
+import { getValidToken } from "@/lib/queryClient";
 
 const formSchema = z.object({
   amount: z.string().min(1, "Amount is required"),
@@ -60,6 +61,26 @@ export function TransferModal({ open, onOpenChange }: TransferModalProps) {
 
   const { data: accounts = [], isLoading: accountsLoading } = useQuery<Account[]>({
     queryKey: ["/api/accounts"],
+    enabled: open,
+    queryFn: async () => {
+      const token = await getValidToken();
+      if (!token) return [];
+      
+      try {
+        const response = await fetch("/api/accounts", {
+          headers: { Authorization: `Bearer ${token}` },
+          credentials: "include",
+        });
+        
+        if (response.status === 401) return [];
+        if (!response.ok) throw new Error("Failed to fetch accounts");
+        
+        return response.json();
+      } catch (error) {
+        console.error("Error fetching accounts:", error);
+        return [];
+      }
+    },
   });
 
   const form = useForm<FormData>({

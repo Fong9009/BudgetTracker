@@ -36,42 +36,43 @@ import { Plus, Search, Edit2, Trash2, Download, Calendar as CalendarIcon, Filter
 import { useLocation } from "wouter";
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subDays, subMonths } from "date-fns";
 import type { TransactionWithDetails, Account, Category } from "@shared/schema";
+import { useAuth } from "@/hooks/useAuth";
+import { getValidToken } from "@/lib/queryClient";
 
 export default function Transactions() {
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [showAddTransaction, setShowAddTransaction] = useState(false);
-  const [showExportModal, setShowExportModal] = useState(false);
+  const [showEditTransaction, setShowEditTransaction] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedAccount, setSelectedAccount] = useState<string>("all");
-  const [selectedCategory, setSelectedCategory] = useState<string>("all");
-  const [selectedType, setSelectedType] = useState<string>("all");
-  const [selectedTransactionKind, setSelectedTransactionKind] = useState<string>("all");
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [selectedTransaction, setSelectedTransaction] = useState<TransactionWithDetails | null>(null);
   const [deleteTransaction, setDeleteTransaction] = useState<string | null>(null);
-  
-  // Advanced filtering states
-  const [dateFrom, setDateFrom] = useState<Date | undefined>();
-  const [dateTo, setDateTo] = useState<Date | undefined>();
-  const [amountMin, setAmountMin] = useState<string>("");
-  const [amountMax, setAmountMax] = useState<string>("");
-  const [sortBy, setSortBy] = useState<string>("date");
-  const [sortOrder, setSortOrder] = useState<string>("desc");
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-  
-  // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
-  
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedAccount, setSelectedAccount] = useState("all");
+  const [selectedCategory, setSelectedCategory] = useState("all");
+  const [selectedType, setSelectedType] = useState("all");
+  const [selectedTransactionKind, setSelectedTransactionKind] = useState("all");
+  const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
+  const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
+  const [amountMin, setAmountMin] = useState("");
+  const [amountMax, setAmountMax] = useState("");
+  const [sortBy, setSortBy] = useState("date");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [showFilters, setShowFilters] = useState(false);
+  const [showQuickFilters, setShowQuickFilters] = useState(false);
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [, setLocation] = useLocation();
 
-  // Build query parameters for server-side filtering
+  // Build query parameters
   const queryParams = new URLSearchParams();
   if (searchTerm) queryParams.set('search', searchTerm);
-  if (selectedAccount !== 'all') queryParams.set('accountId', selectedAccount);
-  if (selectedCategory !== 'all') queryParams.set('categoryId', selectedCategory);
-  if (selectedType !== 'all') queryParams.set('type', selectedType);
-  if (selectedTransactionKind !== 'all') queryParams.set('transactionKind', selectedTransactionKind);
+  if (selectedAccount !== "all") queryParams.set('accountId', selectedAccount);
+  if (selectedCategory !== "all") queryParams.set('categoryId', selectedCategory);
+  if (selectedType !== "all") queryParams.set('type', selectedType);
+  if (selectedTransactionKind !== "all") queryParams.set('transactionKind', selectedTransactionKind);
   if (dateFrom) queryParams.set('dateFrom', dateFrom.toISOString());
   if (dateTo) queryParams.set('dateTo', dateTo.toISOString());
   if (amountMin) queryParams.set('amountMin', amountMin);
@@ -88,6 +89,26 @@ export default function Transactions() {
     currentPage: number;
   }>({
     queryKey: ["/api/transactions", queryParams.toString()],
+    enabled: isAuthenticated && !authLoading,
+    queryFn: async () => {
+      const token = await getValidToken();
+      if (!token) return { transactions: [], total: 0, totalPages: 0, currentPage: 1 };
+      
+      try {
+        const response = await fetch(`/api/transactions?${queryParams.toString()}`, {
+          headers: { Authorization: `Bearer ${token}` },
+          credentials: "include",
+        });
+        
+        if (response.status === 401) return { transactions: [], total: 0, totalPages: 0, currentPage: 1 };
+        if (!response.ok) throw new Error("Failed to fetch transactions");
+        
+        return response.json();
+      } catch (error) {
+        console.error("Error fetching transactions:", error);
+        return { transactions: [], total: 0, totalPages: 0, currentPage: 1 };
+      }
+    },
   });
 
   const transactions = transactionsData?.transactions || [];
@@ -96,10 +117,50 @@ export default function Transactions() {
 
   const { data: accounts = [] } = useQuery<Account[]>({
     queryKey: ["/api/accounts"],
+    enabled: isAuthenticated && !authLoading,
+    queryFn: async () => {
+      const token = await getValidToken();
+      if (!token) return [];
+      
+      try {
+        const response = await fetch("/api/accounts", {
+          headers: { Authorization: `Bearer ${token}` },
+          credentials: "include",
+        });
+        
+        if (response.status === 401) return [];
+        if (!response.ok) throw new Error("Failed to fetch accounts");
+        
+        return response.json();
+      } catch (error) {
+        console.error("Error fetching accounts:", error);
+        return [];
+      }
+    },
   });
 
   const { data: categories = [] } = useQuery<Category[]>({
     queryKey: ["/api/categories"],
+    enabled: isAuthenticated && !authLoading,
+    queryFn: async () => {
+      const token = await getValidToken();
+      if (!token) return [];
+      
+      try {
+        const response = await fetch("/api/categories", {
+          headers: { Authorization: `Bearer ${token}` },
+          credentials: "include",
+        });
+        
+        if (response.status === 401) return [];
+        if (!response.ok) throw new Error("Failed to fetch categories");
+        
+        return response.json();
+      } catch (error) {
+        console.error("Error fetching categories:", error);
+        return [];
+      }
+    },
   });
 
   const filteredCategoriesForDropdown = categories.filter(c => c.name !== 'Transfer');
@@ -295,7 +356,7 @@ export default function Transactions() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                    onClick={() => setShowFilters(!showFilters)}
                     className="flex items-center gap-2"
                   >
                     <SlidersHorizontal className="h-4 w-4" />
@@ -305,7 +366,7 @@ export default function Transactions() {
                         {getActiveFilterCount()}
                       </Badge>
                     )}
-                    <ChevronDown className={cn("h-4 w-4 transition-transform", showAdvancedFilters && "rotate-180")} />
+                    <ChevronDown className={cn("h-4 w-4 transition-transform", showFilters && "rotate-180")} />
                   </Button>
                   {hasActiveFilters && (
                     <Button variant="outline" size="sm" onClick={clearAllFilters}>
@@ -618,7 +679,7 @@ export default function Transactions() {
               </div>
 
               {/* Advanced Filters */}
-              <Collapsible open={showAdvancedFilters} onOpenChange={setShowAdvancedFilters} className="mt-4">
+              <Collapsible open={showFilters} onOpenChange={setShowFilters} className="mt-4">
                 <CollapsibleContent>
                   <div className="border-t border-border pt-4 mt-4 space-y-6">
                     {/* Date Range with Quick Buttons */}
@@ -757,7 +818,7 @@ export default function Transactions() {
 
                         <div className="space-y-2">
                           <label className="text-sm font-medium text-muted-foreground">Order</label>
-                          <Select value={sortOrder} onValueChange={setSortOrder}>
+                          <Select value={sortOrder} onValueChange={(value: "asc" | "desc") => setSortOrder(value)}>
                             <SelectTrigger>
                               <SelectValue />
                             </SelectTrigger>

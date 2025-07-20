@@ -32,6 +32,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { getValidToken } from "@/lib/queryClient";
 import type { Account, Category } from "@shared/schema";
 
 const formSchema = z.object({
@@ -57,11 +58,49 @@ export function AddTransactionModal({ open, onOpenChange }: AddTransactionModalP
   const { data: accounts = [] } = useQuery<Account[]>({
     queryKey: ["/api/accounts"],
     enabled: open,
+    queryFn: async () => {
+      const token = await getValidToken();
+      if (!token) return [];
+      
+      try {
+        const response = await fetch("/api/accounts", {
+          headers: { Authorization: `Bearer ${token}` },
+          credentials: "include",
+        });
+        
+        if (response.status === 401) return [];
+        if (!response.ok) throw new Error("Failed to fetch accounts");
+        
+        return response.json();
+      } catch (error) {
+        console.error("Error fetching accounts:", error);
+        return [];
+      }
+    },
   });
 
   const { data: categories = [] } = useQuery<Category[]>({
     queryKey: ["/api/categories"],
     enabled: open,
+    queryFn: async () => {
+      const token = await getValidToken();
+      if (!token) return [];
+      
+      try {
+        const response = await fetch("/api/categories", {
+          headers: { Authorization: `Bearer ${token}` },
+          credentials: "include",
+        });
+        
+        if (response.status === 401) return [];
+        if (!response.ok) throw new Error("Failed to fetch categories");
+        
+        return response.json();
+      } catch (error) {
+        console.error("Error fetching categories:", error);
+        return [];
+      }
+    },
   });
 
   const filteredCategories = categories.filter(c => c.name !== 'Transfer');

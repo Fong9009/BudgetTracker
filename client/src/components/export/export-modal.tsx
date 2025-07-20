@@ -11,7 +11,8 @@ import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { exportToCsv, exportToPdf } from "@/lib/export-utils";
 import { useToast } from "@/hooks/use-toast";
-import type { Transaction, Account, Category } from "@shared/schema";
+import { getValidToken } from "@/lib/queryClient";
+import type { TransactionWithDetails, Account, Category } from "@shared/schema";
 
 interface ExportModalProps {
   open: boolean;
@@ -27,22 +28,84 @@ export function ExportModal({ open, onOpenChange }: ExportModalProps) {
   const [isExporting, setIsExporting] = useState(false);
   const { toast } = useToast();
 
-  const { data: transactions = [] } = useQuery<Transaction[]>({
+  const { data: transactionsResponse } = useQuery<TransactionWithDetails[]>({
     queryKey: ["/api/transactions"],
     enabled: open,
+    queryFn: async () => {
+      const token = await getValidToken();
+      if (!token) return [];
+      
+      try {
+        const response = await fetch("/api/transactions", {
+          headers: { Authorization: `Bearer ${token}` },
+          credentials: "include",
+        });
+        
+        if (response.status === 401) return [];
+        if (!response.ok) throw new Error("Failed to fetch transactions");
+        
+        return response.json();
+      } catch (error) {
+        console.error("Error fetching transactions:", error);
+        return [];
+      }
+    },
   });
 
-  const { data: accounts = [] } = useQuery<Account[]>({
+  const { data: accountsResponse } = useQuery<Account[]>({
     queryKey: ["/api/accounts"],
     enabled: open,
+    queryFn: async () => {
+      const token = await getValidToken();
+      if (!token) return [];
+      
+      try {
+        const response = await fetch("/api/accounts", {
+          headers: { Authorization: `Bearer ${token}` },
+          credentials: "include",
+        });
+        
+        if (response.status === 401) return [];
+        if (!response.ok) throw new Error("Failed to fetch accounts");
+        
+        return response.json();
+      } catch (error) {
+        console.error("Error fetching accounts:", error);
+        return [];
+      }
+    },
   });
 
-  const { data: categories = [] } = useQuery<Category[]>({
+  const { data: categoriesResponse } = useQuery<Category[]>({
     queryKey: ["/api/categories"],
     enabled: open,
+    queryFn: async () => {
+      const token = await getValidToken();
+      if (!token) return [];
+      
+      try {
+        const response = await fetch("/api/categories", {
+          headers: { Authorization: `Bearer ${token}` },
+          credentials: "include",
+        });
+        
+        if (response.status === 401) return [];
+        if (!response.ok) throw new Error("Failed to fetch categories");
+        
+        return response.json();
+      } catch (error) {
+        console.error("Error fetching categories:", error);
+        return [];
+      }
+    },
   });
 
-  const filteredTransactions = (transactions || []).filter((transaction: Transaction) => {
+  // Safety checks for data structure
+  const transactions = Array.isArray(transactionsResponse) ? transactionsResponse : [];
+  const accounts = Array.isArray(accountsResponse) ? accountsResponse : [];
+  const categories = Array.isArray(categoriesResponse) ? categoriesResponse : [];
+
+  const filteredTransactions = transactions.filter((transaction: TransactionWithDetails) => {
     const transactionDate = new Date(transaction.date);
     return transactionDate >= dateRange.from && transactionDate <= dateRange.to;
   });

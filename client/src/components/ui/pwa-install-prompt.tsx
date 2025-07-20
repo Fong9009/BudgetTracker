@@ -11,24 +11,52 @@ interface PWAInstallPromptProps {
 export const PWAInstallPrompt: React.FC<PWAInstallPromptProps> = ({ onDismiss }) => {
   const { isInstallable, installApp } = usePWA();
   const [isInstalling, setIsInstalling] = useState(false);
+  const [isDismissed, setIsDismissed] = useState(false);
 
-  if (!isInstallable) {
+  console.log('PWA Install Prompt: isInstallable:', isInstallable, 'isDismissed:', isDismissed);
+
+  // Don't show if not installable or already dismissed
+  if (!isInstallable || isDismissed) {
+    console.log('PWA Install Prompt: Not showing (installable:', isInstallable, 'dismissed:', isDismissed, ')');
     return null;
   }
 
   const handleInstall = async () => {
+    console.log('PWA Install Prompt: Install button clicked');
     setIsInstalling(true);
     try {
       const success = await installApp();
-      if (success && onDismiss) {
-        onDismiss();
+      console.log('PWA Install Prompt: Install result:', success);
+      if (success) {
+        // Installation successful, hide the prompt
+        setIsDismissed(true);
+        if (onDismiss) {
+          onDismiss();
+        }
       }
     } catch (error) {
-      console.error('Installation failed:', error);
+      console.error('PWA Install Prompt: Installation failed:', error);
     } finally {
       setIsInstalling(false);
     }
   };
+
+  const handleDismiss = () => {
+    console.log('PWA Install Prompt: Dismiss button clicked');
+    setIsDismissed(true);
+    if (onDismiss) {
+      onDismiss();
+    }
+  };
+
+  const handleLater = () => {
+    console.log('PWA Install Prompt: Later button clicked');
+    // Store dismissal in localStorage to remember user's choice
+    localStorage.setItem('pwa-install-dismissed', Date.now().toString());
+    handleDismiss();
+  };
+
+  console.log('PWA Install Prompt: Rendering component');
 
   return (
     <div className="fixed bottom-4 left-4 right-4 z-50 md:left-auto md:right-4 md:w-80">
@@ -42,7 +70,7 @@ export const PWAInstallPrompt: React.FC<PWAInstallPromptProps> = ({ onDismiss })
             <Button
               variant="ghost"
               size="sm"
-              onClick={onDismiss}
+              onClick={handleDismiss}
               className="h-6 w-6 p-0"
             >
               <X className="h-4 w-4" />
@@ -51,7 +79,7 @@ export const PWAInstallPrompt: React.FC<PWAInstallPromptProps> = ({ onDismiss })
         </CardHeader>
         <CardContent className="pt-0">
           <CardDescription className="mb-4">
-            Install Budget Tracker for quick access and offline functionality.
+            Install Finance Tracker for quick access and offline functionality.
           </CardDescription>
           <div className="flex space-x-2">
             <Button
@@ -64,7 +92,7 @@ export const PWAInstallPrompt: React.FC<PWAInstallPromptProps> = ({ onDismiss })
             </Button>
             <Button
               variant="outline"
-              onClick={onDismiss}
+              onClick={handleLater}
               disabled={isInstalling}
             >
               Later

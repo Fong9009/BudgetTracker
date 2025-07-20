@@ -19,23 +19,101 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
+// Function to check if token is expired
+function isTokenExpired(token: string): boolean {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const currentTime = Date.now() / 1000;
+    return payload.exp < currentTime;
+  } catch (error) {
+    return true;
+  }
+}
+
+// Function to refresh token
+async function refreshToken(): Promise<boolean> {
+  const storedAuth = localStorage.getItem("auth");
+  if (!storedAuth) return false;
+
+  try {
+    const parsed = JSON.parse(storedAuth);
+    const refreshToken = parsed.tokens?.refreshToken;
+    
+    if (!refreshToken) return false;
+
+    const response = await fetch("/api/auth/refresh", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Token refresh failed");
+    }
+
+    const data = await response.json();
+    
+    // Update stored auth with new tokens
+    localStorage.setItem("auth", JSON.stringify({ 
+      user: parsed.user, 
+      tokens: data 
+    }));
+
+    return true;
+  } catch (error) {
+    console.error("Token refresh failed:", error);
+    return false;
+  }
+}
+
+// Function to get valid token with automatic refresh
+export async function getValidToken(): Promise<string | null> {
+  const storedAuth = localStorage.getItem("auth");
+  if (!storedAuth) return null;
+
+  try {
+    const parsed = JSON.parse(storedAuth);
+    const tokens = parsed.tokens;
+    
+    if (!tokens?.accessToken) return null;
+
+    // Check if access token is expired
+    if (isTokenExpired(tokens.accessToken)) {
+      // Try to refresh the token
+      if (tokens.refreshToken) {
+        const success = await refreshToken();
+        if (success) {
+          const newStoredAuth = localStorage.getItem("auth");
+          if (newStoredAuth) {
+            const newParsed = JSON.parse(newStoredAuth);
+            return newParsed.tokens?.accessToken || null;
+          }
+        } else {
+          // Refresh failed, clear auth
+          localStorage.removeItem("auth");
+          return null;
+        }
+      } else {
+        // No refresh token, clear auth
+        localStorage.removeItem("auth");
+        return null;
+      }
+    }
+
+    return tokens.accessToken;
+  } catch (error) {
+    console.error("Error getting valid token:", error);
+    return null;
+  }
+}
+
 export async function apiRequest(
   method: string,
   url: string,
   data?: any,
   options: RequestInit = {}
 ): Promise<any> {
-  const authData = localStorage.getItem("auth");
-  let token = null;
-  
-  if (authData) {
-    try {
-      const parsed = JSON.parse(authData);
-      token = parsed.tokens?.accessToken;
-    } catch (error) {
-      console.error('Error parsing auth data:', error);
-    }
-  }
+  const token = await getValidToken();
   
   const res = await fetch(url, {
     method,
@@ -66,22 +144,21 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const authData = localStorage.getItem("auth");
-    let token = null;
+    const token = await getValidToken();
     
-    if (authData) {
-      try {
-        const parsed = JSON.parse(authData);
-        token = parsed.tokens?.accessToken;
-      } catch (error) {
-        console.error('Error parsing auth data:', error);
+    // If no token is available, return null for unauthenticated users
+    if (!token) {
+      if (unauthorizedBehavior === "returnNull") {
+        return null;
+      } else {
+        throw new Error("Authentication required");
       }
     }
     
     const res = await fetch(queryKey[0] as string, {
       method: "GET",
       headers: {
-        ...(token && { Authorization: `Bearer ${token}` }),
+        Authorization: `Bearer ${token}`,
       },
       credentials: "include",
     });
@@ -97,7 +174,6 @@ export const getQueryFn: <T>(options: {
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      queryFn: getQueryFn({ on401: "throw" }),
       refetchInterval: false,
       refetchOnWindowFocus: false,
       staleTime: Infinity,

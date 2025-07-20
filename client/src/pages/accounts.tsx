@@ -18,11 +18,14 @@ import { TransferModal } from "@/components/modals/transfer-modal";
 import { formatCurrency, getAccountTypeIcon, getAccountTypeColor } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import { getValidToken } from "@/lib/queryClient";
 import { Plus, Edit2, Trash2, ArrowRightLeft, Archive } from "lucide-react";
 import { useLocation } from "wouter";
 import type { Account } from "@shared/schema";
 
 export default function Accounts() {
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [showEditAccount, setShowEditAccount] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
@@ -34,6 +37,26 @@ export default function Accounts() {
 
   const { data: accounts = [], isLoading } = useQuery<Account[]>({
     queryKey: ["/api/accounts"],
+    enabled: isAuthenticated && !authLoading,
+    queryFn: async () => {
+      const token = await getValidToken();
+      if (!token) return [];
+      
+      try {
+        const response = await fetch("/api/accounts", {
+          headers: { Authorization: `Bearer ${token}` },
+          credentials: "include",
+        });
+        
+        if (response.status === 401) return [];
+        if (!response.ok) throw new Error("Failed to fetch accounts");
+        
+        return response.json();
+      } catch (error) {
+        console.error("Error fetching accounts:", error);
+        return [];
+      }
+    },
   });
 
   const deleteMutation = useMutation({

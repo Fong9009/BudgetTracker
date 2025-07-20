@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { loginUserSchema, type LoginUser } from "@shared/schema";
@@ -6,18 +5,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { apiRequest } from "@/lib/queryClient";
-import { useMutation } from "@tanstack/react-query";
-import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 
 interface LoginProps {
-  onLogin: (token: string, user: any) => void;
   onSwitchToRegister: () => void;
   onForgotPassword: () => void;
 }
 
-export default function Login({ onLogin, onSwitchToRegister, onForgotPassword }: LoginProps) {
-  const { toast } = useToast();
+export default function Login({ onSwitchToRegister, onForgotPassword }: LoginProps) {
+  const { login } = useAuth();
   
   const form = useForm<LoginUser>({
     resolver: zodResolver(loginUserSchema),
@@ -27,31 +23,13 @@ export default function Login({ onLogin, onSwitchToRegister, onForgotPassword }:
     },
   });
 
-  const loginMutation = useMutation({
-    mutationFn: async (data: LoginUser) => {
-      const response = await apiRequest("POST", "/api/auth/login", data);
-      return response;
-    },
-    onSuccess: (data) => {
-      localStorage.setItem("token", data.token);
-      onLogin(data.token, data.user);
-      toast({
-        title: "Success",
-        description: "Logged in successfully!",
-        variant: "success",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Login failed",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const onSubmit = (data: LoginUser) => {
-    loginMutation.mutate(data);
+  const onSubmit = async (data: LoginUser) => {
+    const result = await login(data.email, data.password);
+    if (result.success) {
+      // Login successful, user will be automatically redirected
+      // No need to manually handle the login since useAuth handles it
+    }
+    // Error handling is done in the useAuth hook
   };
 
   return (
@@ -94,9 +72,9 @@ export default function Login({ onLogin, onSwitchToRegister, onForgotPassword }:
               <Button 
                 type="submit" 
                 className="w-full"
-                disabled={loginMutation.isPending}
+                disabled={form.formState.isSubmitting}
               >
-                {loginMutation.isPending ? "Signing in..." : "Sign In"}
+                {form.formState.isSubmitting ? "Signing in..." : "Sign In"}
               </Button>
             </form>
           </Form>

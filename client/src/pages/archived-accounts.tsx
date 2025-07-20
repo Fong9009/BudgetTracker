@@ -18,6 +18,7 @@ import { formatCurrency, getAccountTypeIcon, getAccountTypeColor } from "@/lib/u
 import { RotateCcw, Trash2, ArrowLeft } from "lucide-react";
 import { useLocation } from "wouter";
 import type { Account } from "@shared/schema";
+import { getValidToken } from "@/lib/queryClient";
 
 export default function ArchivedAccounts() {
   const [restoreAccount, setRestoreAccount] = useState<string | null>(null);
@@ -28,6 +29,25 @@ export default function ArchivedAccounts() {
 
   const { data: archivedAccounts = [], isLoading } = useQuery<Account[]>({
     queryKey: ["/api/accounts/archived"],
+    queryFn: async () => {
+      const token = await getValidToken();
+      if (!token) return [];
+      
+      try {
+        const response = await fetch("/api/accounts/archived", {
+          headers: { Authorization: `Bearer ${token}` },
+          credentials: "include",
+        });
+        
+        if (response.status === 401) return [];
+        if (!response.ok) throw new Error("Failed to fetch archived accounts");
+        
+        return response.json();
+      } catch (error) {
+        console.error("Error fetching archived accounts:", error);
+        return [];
+      }
+    },
   });
 
   const restoreMutation = useMutation({
