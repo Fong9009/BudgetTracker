@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { storage } from "./storage";
+import { blacklistToken as redisBlacklistToken, isTokenBlacklisted as redisIsTokenBlacklisted } from "./redis";
 import type { User as CustomUser } from "@shared/schema";
 
 declare global {
@@ -21,12 +22,12 @@ export interface TokenPayload {
   type: 'access' | 'refresh';
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || "your-default-secret";
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || "your-refresh-secret";
+const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
 const ACCESS_TOKEN_EXPIRY = '15m'; // Short-lived access tokens
 const REFRESH_TOKEN_EXPIRY = '7d'; // Longer-lived refresh tokens
 
-// In-memory token blacklist (in production, use Redis)
+// In-memory token blacklist (fallback when Redis is unavailable)
 const tokenBlacklist = new Set<string>();
 
 export const hashPassword = async (password: string): Promise<string> => {
@@ -39,6 +40,9 @@ export const comparePassword = async (password: string, hashedPassword: string):
 };
 
 export const generateAccessToken = (userId: string, tokenId: string): string => {
+  if (!JWT_SECRET) {
+    throw new Error('JWT_SECRET is not configured');
+  }
   return jwt.sign(
     { userId, tokenId, type: 'access' } as TokenPayload, 
     JWT_SECRET, 
@@ -47,6 +51,9 @@ export const generateAccessToken = (userId: string, tokenId: string): string => 
 };
 
 export const generateRefreshToken = (userId: string, tokenId: string): string => {
+  if (!JWT_REFRESH_SECRET) {
+    throw new Error('JWT_REFRESH_SECRET is not configured');
+  }
   return jwt.sign(
     { userId, tokenId, type: 'refresh' } as TokenPayload, 
     JWT_REFRESH_SECRET, 
@@ -55,11 +62,19 @@ export const generateRefreshToken = (userId: string, tokenId: string): string =>
 };
 
 export const verifyAccessToken = (token: string): TokenPayload => {
-  return jwt.verify(token, JWT_SECRET) as TokenPayload;
+  if (!JWT_SECRET) {
+    throw new Error('JWT_SECRET is not configured');
+  }
+  const decoded = jwt.verify(token, JWT_SECRET);
+  return decoded as TokenPayload;
 };
 
 export const verifyRefreshToken = (token: string): TokenPayload => {
-  return jwt.verify(token, JWT_REFRESH_SECRET) as TokenPayload;
+  if (!JWT_REFRESH_SECRET) {
+    throw new Error('JWT_REFRESH_SECRET is not configured');
+  }
+  const decoded = jwt.verify(token, JWT_REFRESH_SECRET);
+  return decoded as TokenPayload;
 };
 
 export const generateTokenPair = (userId: string): { accessToken: string; refreshToken: string; tokenId: string } => {
@@ -70,12 +85,26 @@ export const generateTokenPair = (userId: string): { accessToken: string; refres
   return { accessToken, refreshToken, tokenId };
 };
 
-export const blacklistToken = (token: string): void => {
-  tokenBlacklist.add(token);
+export const blacklistToken = async (token: string): Promise<void> => {
+  try {
+    // Try Redis first
+    await redisBlacklistToken(token);
+  } catch (error) {
+    // Fallback to in-memory storage
+    console.warn('Redis unavailable, using in-memory blacklist');
+    tokenBlacklist.add(token);
+  }
 };
 
-export const isTokenBlacklisted = (token: string): boolean => {
-  return tokenBlacklist.has(token);
+export const isTokenBlacklisted = async (token: string): Promise<boolean> => {
+  try {
+    // Try Redis first
+    return await redisIsTokenBlacklisted(token);
+  } catch (error) {
+    // Fallback to in-memory storage
+    console.warn('Redis unavailable, checking in-memory blacklist');
+    return tokenBlacklist.has(token);
+  }
 };
 
 export const authMiddleware = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
@@ -86,7 +115,7 @@ export const authMiddleware = async (req: AuthenticatedRequest, res: Response, n
     }
 
     // Check if token is blacklisted
-    if (isTokenBlacklisted(token)) {
+    if (await isTokenBlacklisted(token)) {
       return res.status(401).json({ message: "Token has been revoked" });
     }
 
@@ -125,7 +154,7 @@ export const refreshTokenMiddleware = async (req: Request, res: Response) => {
     }
 
     // Check if refresh token is blacklisted
-    if (isTokenBlacklisted(refreshToken)) {
+    if (await isTokenBlacklisted(refreshToken)) {
       return res.status(401).json({ message: "Refresh token has been revoked" });
     }
 
@@ -146,7 +175,7 @@ export const refreshTokenMiddleware = async (req: Request, res: Response) => {
     const newTokenPair = generateTokenPair(decoded.userId);
     
     // Blacklist the old refresh token
-    blacklistToken(refreshToken);
+    await blacklistToken(refreshToken);
 
     res.json({
       accessToken: newTokenPair.accessToken,
@@ -168,7 +197,7 @@ export const logoutMiddleware = async (req: AuthenticatedRequest, res: Response)
   try {
     const token = req.headers.authorization?.split(" ")[1];
     if (token) {
-      blacklistToken(token);
+      await blacklistToken(token);
     }
     
     res.json({ message: "Logged out successfully" });

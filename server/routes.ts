@@ -23,8 +23,29 @@ import { validateRequest, validateQuery, validateRequestAndQuery, handleValidati
 import { z } from "zod";
 import { sendEmail } from "./mail";
 import crypto from "crypto";
+import { checkRedisHealth } from "./redis";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Health check endpoint
+  app.get("/api/health", async (req, res) => {
+    try {
+      const redisHealth = await checkRedisHealth();
+      res.json({
+        status: "healthy",
+        timestamp: new Date().toISOString(),
+        services: {
+          redis: redisHealth ? "connected" : "disconnected"
+        }
+      });
+    } catch (error) {
+      res.status(500).json({
+        status: "unhealthy",
+        timestamp: new Date().toISOString(),
+        error: "Health check failed"
+      });
+    }
+  });
+
   // Authentication routes
   app.post("/api/auth/register", validateRequest(registerUserSchema), async (req, res) => {
     try {

@@ -1,9 +1,21 @@
 import CryptoJS from 'crypto-js';
 
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'your-encryption-key-change-in-production';
+let ENCRYPTION_KEY: string | undefined;
+
+function getEncryptionKey(): string {
+  if (!ENCRYPTION_KEY) {
+    ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
+    if (!ENCRYPTION_KEY) {
+      throw new Error('ENCRYPTION_KEY environment variable is required. Please set it in your .env file.');
+    }
+  }
+  return ENCRYPTION_KEY;
+}
 
 export class EncryptionService {
-  private static key = CryptoJS.enc.Utf8.parse(ENCRYPTION_KEY.padEnd(32, '0').slice(0, 32));
+  private static get key() {
+    return CryptoJS.enc.Utf8.parse(getEncryptionKey().padEnd(32, '0').slice(0, 32));
+  }
 
   /**
    * Encrypt sensitive data
