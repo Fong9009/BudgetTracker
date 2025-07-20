@@ -735,6 +735,98 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/analytics/spending-data", authMiddleware, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = req.user!._id;
+      const categories = await storage.getCategories(userId);
+      const transactions = await storage.getTransactions(userId);
+
+      // Get current week transactions (Monday to Sunday)
+      const today = new Date();
+      const startOfWeek = new Date(today);
+      const dayOfWeek = today.getDay();
+      const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Adjust for Sunday
+      startOfWeek.setDate(today.getDate() - daysToSubtract);
+      startOfWeek.setHours(0, 0, 0, 0);
+      
+      const endOfWeek = new Date(startOfWeek);
+      endOfWeek.setDate(startOfWeek.getDate() + 6);
+      endOfWeek.setHours(23, 59, 59, 999);
+      
+      const currentWeekTransactions = transactions.filter(t => {
+        const transactionDate = new Date(t.date);
+        return transactionDate >= startOfWeek && transactionDate <= endOfWeek;
+      });
+
+      // Get previous week transactions for comparison
+      const startOfPreviousWeek = new Date(startOfWeek);
+      startOfPreviousWeek.setDate(startOfWeek.getDate() - 7);
+      
+      const endOfPreviousWeek = new Date(startOfWeek);
+      endOfPreviousWeek.setDate(startOfWeek.getDate() - 1);
+      endOfPreviousWeek.setHours(23, 59, 59, 999);
+      
+      const previousWeekTransactions = transactions.filter(t => {
+        const transactionDate = new Date(t.date);
+        return transactionDate >= startOfPreviousWeek && transactionDate <= endOfPreviousWeek;
+      });
+
+      // Calculate current week spending
+      const currentWeekSpending = currentWeekTransactions
+        .filter(t => t.type === 'expense' && t.category.name !== 'Transfer')
+        .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
+
+      // Calculate previous week spending
+      const previousWeekSpending = previousWeekTransactions
+        .filter(t => t.type === 'expense' && t.category.name !== 'Transfer')
+        .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
+
+      // Calculate spending change percentage
+      const spendingChange = previousWeekSpending > 0 
+        ? ((currentWeekSpending - previousWeekSpending) / previousWeekSpending) * 100 
+        : 0;
+
+      // Calculate category spending with weekly budget percentages
+      const categorySpending = categories
+        .filter(category => category.name !== 'Transfer')
+        .map(category => {
+          const categoryTransactions = currentWeekTransactions
+            .filter(t => t.category._id.toString() === category._id.toString() && t.type === 'expense');
+          
+          const spent = categoryTransactions.reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
+          
+          // Weekly budget per category (monthly budget / 4 weeks)
+          const weeklyBudget = 125; // $500 monthly / 4 weeks
+          const percentage = (spent / weeklyBudget) * 100;
+          
+          return {
+            category: category.name,
+            spent: spent,
+            budget: weeklyBudget,
+            percentage: percentage
+          };
+        })
+        .filter(category => category.spent > 0); // Only include categories with spending
+
+      // Weekly budget (monthly budget / 4 weeks)
+      const weeklyBudget = 500; // $2000 monthly / 4 weeks
+
+      res.json({
+        totalSpent: currentWeekSpending,
+        monthlyBudget: weeklyBudget * 4, // Keep for compatibility
+        weeklyBudget: weeklyBudget,
+        categorySpending: categorySpending,
+        previousWeekSpending: previousWeekSpending,
+        spendingChange: spendingChange,
+        weekStart: startOfWeek.toISOString(),
+        weekEnd: endOfWeek.toISOString()
+      });
+    } catch (error) {
+      console.error("Error fetching spending data:", error);
+      res.status(500).json({ message: "Failed to fetch spending data" });
+    }
+  });
+
   // Export routes (protected)
   app.post("/api/export", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {
