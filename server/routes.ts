@@ -26,6 +26,13 @@ import crypto from "crypto";
 import { EncryptionService } from "./encryption";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // CSRF token endpoint
+  app.get("/api/csrf-token", (req, res) => {
+    res.json({ 
+      csrfToken: req.csrfToken?.() || null 
+    });
+  });
+
   // Health check endpoint
   app.get("/api/health", async (req, res) => {
     try {

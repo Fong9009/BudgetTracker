@@ -13,6 +13,7 @@ import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import csrf from "csurf";
+import cookieParser from "cookie-parser";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { connectToDatabase } from "./mongodb";
@@ -99,6 +100,9 @@ app.use(securityLogging);
 // Input sanitization
 app.use(sanitizeInput);
 
+// Cookie parser middleware (required for CSRF)
+app.use(cookieParser());
+
 // Body parsing middleware with limits
 app.use(express.json({ 
   limit: '10mb', // Reduced from 50mb for security
@@ -161,6 +165,17 @@ app.use((req, res, next) => {
   await connectToDatabase();
   
   const server = await registerRoutes(app);
+
+  // CSRF error handler
+  app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+    if (err.code === 'EBADCSRFTOKEN') {
+      return res.status(403).json({ 
+        message: 'CSRF token validation failed',
+        error: 'Invalid or missing CSRF token'
+      });
+    }
+    next(err);
+  });
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

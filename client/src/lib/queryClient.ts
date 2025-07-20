@@ -107,6 +107,25 @@ export async function getValidToken(): Promise<string | null> {
   }
 }
 
+// Function to get CSRF token
+async function getCSRFToken(): Promise<string | null> {
+  try {
+    const response = await fetch("/api/csrf-token", {
+      method: "GET",
+      credentials: "include",
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      return data.csrfToken;
+    }
+  } catch (error) {
+    console.warn("Failed to get CSRF token:", error);
+  }
+  
+  return null;
+}
+
 export async function apiRequest(
   method: string,
   url: string,
@@ -114,14 +133,18 @@ export async function apiRequest(
   options: RequestInit = {}
 ): Promise<any> {
   const token = await getValidToken();
+  const csrfToken = method !== 'GET' ? await getCSRFToken() : null;
+  
+  const headers = {
+    "Content-Type": "application/json",
+    ...(token && { Authorization: `Bearer ${token}` }),
+    ...(csrfToken && { "X-CSRF-Token": csrfToken }),
+    ...options.headers,
+  } as Record<string, string>;
   
   const res = await fetch(url, {
     method,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token && { Authorization: `Bearer ${token}` }),
-      ...options.headers,
-    },
+    headers,
     credentials: "include",
     ...(data && { body: JSON.stringify(data) }),
     ...options,
