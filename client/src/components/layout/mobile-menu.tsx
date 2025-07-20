@@ -1,7 +1,8 @@
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { X, Menu } from "lucide-react";
+import { usePWA } from "@/hooks/usePWA";
+import { X, Menu, Smartphone } from "lucide-react";
 import { useState } from "react";
 
 const navigation = [
@@ -18,20 +19,36 @@ interface MobileMenuProps {
 export function MobileMenu({ className }: MobileMenuProps) {
   const [location] = useLocation();
   const [isOpen, setIsOpen] = useState(false);
+  const { isInstallable, installApp } = usePWA();
+  const [isInstalling, setIsInstalling] = useState(false);
 
   const toggleMenu = () => setIsOpen(!isOpen);
   const closeMenu = () => setIsOpen(false);
+
+  const handleInstallApp = async () => {
+    if (!isInstallable) return;
+    
+    setIsInstalling(true);
+    try {
+      await installApp();
+      closeMenu();
+    } catch (error) {
+      console.error('Failed to install app:', error);
+    } finally {
+      setIsInstalling(false);
+    }
+  };
 
   return (
     <>
       {/* Mobile menu button */}
       <Button
         variant="ghost"
-        size="sm"
-        className={cn("lg:hidden", className)}
+        size="icon"
+        className={cn("lg:hidden [&_svg]:!size-5 flex items-center justify-center h-10 w-10 hover:bg-primary hover:text-primary-foreground p-2", className)}
         onClick={toggleMenu}
       >
-        <Menu className="h-6 w-6" />
+        <Menu className="h-5 w-5" />
       </Button>
 
       {/* Mobile sidebar overlay */}
@@ -91,6 +108,20 @@ export function MobileMenu({ className }: MobileMenuProps) {
                     </Link>
                   );
                 })}
+                
+                {/* Install App Button */}
+                {isInstallable && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleInstallApp}
+                    disabled={isInstalling}
+                    className="w-full justify-start mt-4"
+                  >
+                    <Smartphone className="h-4 w-4 mr-3" />
+                    {isInstalling ? 'Installing...' : 'Install App'}
+                  </Button>
+                )}
               </nav>
             </div>
           </div>

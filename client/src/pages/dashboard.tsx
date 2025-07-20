@@ -9,9 +9,10 @@ import { TransferModal } from "@/components/modals/transfer-modal";
 import { ExportModal } from "@/components/export/export-modal";
 import { formatCurrency, formatDate, getAccountTypeIcon, getAccountTypeColor, getTransactionTypeColor, groupTransferTransactions } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
-import { Plus, Download, ArrowRightLeft, CreditCard, Zap } from "lucide-react";
-import type { TransactionWithDetails, Account } from "@shared/schema";
 import { getValidToken } from "@/lib/queryClient";
+import { usePWA } from "@/hooks/usePWA";
+import { Plus, Download, ArrowRightLeft, CreditCard, Zap, Smartphone } from "lucide-react";
+import type { TransactionWithDetails, Account } from "@shared/schema";
 
 interface AnalyticsSummary {
   totalBalance: string;
@@ -31,10 +32,25 @@ interface CategorySpending {
 
 export default function Dashboard() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isInstallable, installApp } = usePWA();
   const [showAddTransaction, setShowAddTransaction] = useState(false);
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [isInstalling, setIsInstalling] = useState(false);
+
+  const handleInstallApp = async () => {
+    if (!isInstallable) return;
+    
+    setIsInstalling(true);
+    try {
+      await installApp();
+    } catch (error) {
+      console.error('Failed to install app:', error);
+    } finally {
+      setIsInstalling(false);
+    }
+  };
 
   const { data: accounts = [], isLoading: accountsLoading } = useQuery<Account[]>({
     queryKey: ["/api/accounts"],
@@ -178,7 +194,7 @@ export default function Dashboard() {
               <Zap className="h-5 w-5 text-primary" />
               <h3 className="text-lg font-medium text-foreground">Quick Actions</h3>
             </div>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
               <Button
                 variant="outline"
                 className="h-20 flex-col gap-2 hover:bg-primary/5 hover:border-primary/20"
@@ -210,6 +226,17 @@ export default function Dashboard() {
               >
                 <Download className="h-6 w-6 text-purple-600 dark:text-purple-400" />
                 <span className="text-sm font-medium">Export Data</span>
+              </Button>
+              <Button
+                variant="outline"
+                className="h-20 flex-col gap-2 hover:bg-orange-50 hover:border-orange-200 dark:hover:bg-orange-950 dark:hover:border-orange-800"
+                onClick={handleInstallApp}
+                disabled={isInstalling}
+              >
+                <Smartphone className="h-6 w-6 text-orange-600 dark:text-orange-400" />
+                <span className="text-sm font-medium">
+                  {isInstallable ? (isInstalling ? 'Installing...' : 'Install App') : 'Installed'}
+                </span>
               </Button>
             </div>
           </div>

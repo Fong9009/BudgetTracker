@@ -1,5 +1,9 @@
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { usePWA } from "@/hooks/usePWA";
+import { Smartphone } from "lucide-react";
+import { useState } from "react";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: "fas fa-tachometer-alt" },
@@ -10,6 +14,21 @@ const navigation = [
 
 export function Sidebar() {
   const [location] = useLocation();
+  const { isInstallable, installApp } = usePWA();
+  const [isInstalling, setIsInstalling] = useState(false);
+
+  const handleInstallApp = async () => {
+    if (!isInstallable) return;
+    
+    setIsInstalling(true);
+    try {
+      await installApp();
+    } catch (error) {
+      console.error('Failed to install app:', error);
+    } finally {
+      setIsInstalling(false);
+    }
+  };
 
   return (
     <div className="hidden lg:flex lg:w-64 lg:flex-col">
@@ -53,6 +72,22 @@ export function Sidebar() {
             );
           })}
         </nav>
+
+        {/* Install App Button */}
+        {isInstallable && (
+          <div className="px-2 mt-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleInstallApp}
+              disabled={isInstalling}
+              className="w-full justify-start"
+            >
+              <Smartphone className="h-4 w-4 mr-2" />
+              {isInstalling ? 'Installing...' : 'Install App'}
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );
