@@ -141,7 +141,8 @@ export const validateRequestSize = (req: Request, res: Response, next: NextFunct
 
 // IP address validation (basic)
 export const validateIP = (req: Request, res: Response, next: NextFunction) => {
-  const ip = req.ip || req.connection.remoteAddress;
+  // Get IP from X-Forwarded-For header when behind a proxy, fallback to req.ip
+  const ip = req.headers['x-forwarded-for']?.toString().split(',')[0] || req.ip || req.connection.remoteAddress;
   
   // Basic IP validation
   if (!ip || ip === 'unknown') {
@@ -153,7 +154,8 @@ export const validateIP = (req: Request, res: Response, next: NextFunction) => {
 
 // Security logging middleware
 export const securityLogging = (req: Request, res: Response, next: NextFunction) => {
-  const ip = req.ip || req.connection.remoteAddress;
+  // Get IP from X-Forwarded-For header when behind a proxy, fallback to req.ip
+  const ip = req.headers['x-forwarded-for']?.toString().split(',')[0] || req.ip || req.connection.remoteAddress;
   const userAgent = req.headers['user-agent'] || 'Unknown';
   const method = req.method;
   const path = req.path;

@@ -28,6 +28,9 @@ import {
 
 const app = express();
 
+// Trust proxy for accurate IP detection (needed for rate limiting behind load balancers)
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(helmet({
   contentSecurityPolicy: {
@@ -66,6 +69,10 @@ const limiter = rateLimit({
   },
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  keyGenerator: (req) => {
+    // Use X-Forwarded-For header when behind a proxy, fallback to req.ip
+    return req.headers['x-forwarded-for']?.toString().split(',')[0] || req.ip || 'unknown';
+  },
 });
 
 // Apply rate limiting to all API routes
@@ -81,6 +88,10 @@ const authLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => {
+    // Use X-Forwarded-For header when behind a proxy, fallback to req.ip
+    return req.headers['x-forwarded-for']?.toString().split(',')[0] || req.ip || 'unknown';
+  },
 });
 
 app.use('/api/auth', authLimiter);
