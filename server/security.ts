@@ -151,6 +151,43 @@ export const validateIP = (req: Request, res: Response, next: NextFunction) => {
   next();
 };
 
+// Security logging middleware
+export const securityLogging = (req: Request, res: Response, next: NextFunction) => {
+  const ip = req.ip || req.connection.remoteAddress;
+  const userAgent = req.headers['user-agent'] || 'Unknown';
+  const method = req.method;
+  const path = req.path;
+  
+  // Log suspicious activities
+  const suspiciousPatterns = [
+    /<script/i,
+    /javascript:/i,
+    /on\w+\s*=/i,
+    /union\s+select/i,
+    /drop\s+table/i,
+    /exec\s*\(/i,
+    /eval\s*\(/i
+  ];
+  
+  const requestBody = JSON.stringify(req.body);
+  const isSuspicious = suspiciousPatterns.some(pattern => 
+    pattern.test(requestBody) || pattern.test(path) || pattern.test(userAgent)
+  );
+  
+  if (isSuspicious) {
+    console.warn(`🚨 SUSPICIOUS ACTIVITY DETECTED:`, {
+      ip,
+      userAgent,
+      method,
+      path,
+      body: requestBody,
+      timestamp: new Date().toISOString()
+    });
+  }
+  
+  next();
+};
+
 // Rate limiting error handler
 export const rateLimitErrorHandler = (err: any, req: Request, res: Response, next: NextFunction) => {
   if (err.type === 'entity.too.large') {

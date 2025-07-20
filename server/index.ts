@@ -1,6 +1,7 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
+import crypto from 'crypto';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,7 +21,8 @@ import {
   securityHeaders, 
   validateRequestSize, 
   validateIP,
-  rateLimitErrorHandler 
+  rateLimitErrorHandler,
+  securityLogging
 } from "./security";
 
 const app = express();
@@ -91,6 +93,9 @@ app.use(validateRequestSize);
 // IP validation
 app.use(validateIP);
 
+// Security logging (before sanitization)
+app.use(securityLogging);
+
 // Input sanitization
 app.use(sanitizeInput);
 
@@ -107,8 +112,21 @@ app.use(express.urlencoded({
   limit: '10mb' 
 }));
 
+// CSRF protection for non-GET requests
+app.use(csrf({ 
+  cookie: {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict'
+  }
+}));
+
 // Request logging middleware
 app.use((req, res, next) => {
+  // Add request ID for tracking
+  (req as any).id = crypto.randomUUID();
+  res.setHeader('X-Request-ID', (req as any).id);
+  
   const start = Date.now();
   const path = req.path;
   let capturedJsonResponse: Record<string, any> | undefined = undefined;
@@ -122,7 +140,7 @@ app.use((req, res, next) => {
   res.on("finish", () => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
+      let logLine = `[${(req as any).id}] ${req.method} ${path} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       }
