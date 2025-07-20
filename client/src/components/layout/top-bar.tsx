@@ -22,7 +22,7 @@ export function TopBar({ onLogout }: TopBarProps) {
 
   return (
     <div className="relative z-10 flex-shrink-0 flex h-16 bg-card shadow border-b border-border">
-      <MobileMenu />
+      <MobileMenu className="ml-2 mt-3" /> 
 
       <div className="flex-1 px-4 flex justify-between items-center">
         <div className="flex-1 flex">
@@ -87,4 +87,4 @@ export function TopBar({ onLogout }: TopBarProps) {
       </div>
     </div>
   );
-} 
+}
