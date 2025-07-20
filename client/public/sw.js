@@ -1,8 +1,11 @@
-const CACHE_NAME = 'finance-tracker-v1';
+const CACHE_NAME = 'finance-tracker-v2';
 const urlsToCache = [
   '/',
   '/index.html',
-  '/manifest.json'
+  '/manifest.json',
+  '/icon.svg',
+  '/assets/index-DvyD_7ve.css',
+  '/assets/index-BDP6aY6S.js'
 ];
 
 // Install event - cache resources
