@@ -31,7 +31,9 @@ const app = express();
 // Trust proxy for accurate IP detection (needed for rate limiting behind load balancers)
 app.set('trust proxy', 1);
 
-// Security middleware
+// Security middleware with environment-specific CSP
+const isProduction = process.env.NODE_ENV === 'production';
+
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -39,8 +41,15 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"],
       scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "ws:", "wss:"],
+      connectSrc: isProduction 
+        ? ["'self'", "ws:", "wss:", "https://cdnjs.cloudflare.com"]
+        : ["'self'", "ws:", "wss:", "https://cdnjs.cloudflare.com", "http://localhost:*"],
       fontSrc: ["'self'", "https://cdnjs.cloudflare.com", "data:"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+      frameAncestors: ["'none'"],
+      upgradeInsecureRequests: isProduction ? [] : null,
     },
   },
   crossOriginEmbedderPolicy: false,

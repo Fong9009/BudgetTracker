@@ -1,4 +1,4 @@
-const CACHE_NAME = 'finance-tracker-v2';
+const CACHE_NAME = 'finance-tracker-v3';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -6,6 +6,11 @@ const urlsToCache = [
   '/icon.svg',
   '/assets/index-DvyD_7ve.css',
   '/assets/index-BDP6aY6S.js'
+];
+
+// External resources to cache
+const externalResources = [
+  'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css'
 ];
 
 // Install event - cache resources
@@ -36,6 +41,29 @@ self.addEventListener('fetch', (event) => {
 
   // Skip API requests
   if (event.request.url.includes('/api/')) {
+    return;
+  }
+
+  // Handle external resources (like Font Awesome)
+  if (event.request.url.includes('cdnjs.cloudflare.com')) {
+    event.respondWith(
+      fetch(event.request)
+        .then(response => {
+          // Cache successful responses
+          if (response.ok) {
+            const responseClone = response.clone();
+            caches.open(CACHE_NAME).then(cache => {
+              cache.put(event.request, responseClone);
+            });
+          }
+          return response;
+        })
+        .catch(error => {
+          console.log('External resource fetch failed:', event.request.url, error);
+          // Try to serve from cache as fallback
+          return caches.match(event.request);
+        })
+    );
     return;
   }
 
