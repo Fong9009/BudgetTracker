@@ -26,11 +26,20 @@ import crypto from "crypto";
 import { EncryptionService } from "./encryption";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // CSRF token endpoint
+  // CSRF token endpoint (accessible without auth)
   app.get("/api/csrf-token", (req, res) => {
-    res.json({ 
-      csrfToken: req.csrfToken?.() || null 
-    });
+    try {
+      const token = req.csrfToken?.();
+      res.json({ 
+        csrfToken: token || null 
+      });
+    } catch (error) {
+      console.error("CSRF token generation error:", error);
+      res.status(500).json({ 
+        csrfToken: null,
+        error: "Failed to generate CSRF token" 
+      });
+    }
   });
 
   // Health check endpoint

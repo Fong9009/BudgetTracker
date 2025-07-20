@@ -43,7 +43,10 @@ async function refreshToken(): Promise<boolean> {
 
     const response = await fetch("/api/auth/refresh", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Content-Type": "application/json"
+      },
+      credentials: "include", // Include cookies for CSRF
       body: JSON.stringify({ refreshToken }),
     });
 
@@ -133,7 +136,10 @@ export async function apiRequest(
   options: RequestInit = {}
 ): Promise<any> {
   const token = await getValidToken();
-  const csrfToken = method !== 'GET' ? await getCSRFToken() : null;
+  
+  // Don't send CSRF tokens for auth endpoints
+  const isAuthEndpoint = url.includes('/auth/');
+  const csrfToken = (method !== 'GET' && !isAuthEndpoint) ? await getCSRFToken() : null;
   
   const headers = {
     "Content-Type": "application/json",

@@ -116,14 +116,22 @@ app.use(express.urlencoded({
   limit: '10mb' 
 }));
 
-// CSRF protection for non-GET requests
-app.use(csrf({ 
-  cookie: {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict'
+// CSRF protection for non-GET requests (excluding auth endpoints)
+app.use('/api', (req, res, next) => {
+  // Skip CSRF for authentication endpoints
+  if (req.path.startsWith('/auth/')) {
+    return next();
   }
-}));
+  
+  // Apply CSRF protection to other endpoints
+  return csrf({ 
+    cookie: {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict'
+    }
+  })(req, res, next);
+});
 
 // Request logging middleware
 app.use((req, res, next) => {
