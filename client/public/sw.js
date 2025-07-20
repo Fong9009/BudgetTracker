@@ -1,11 +1,9 @@
-const CACHE_NAME = 'finance-tracker-v3';
+const CACHE_NAME = 'finance-tracker-v4';
 const urlsToCache = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/icon.svg',
-  '/assets/index-DvyD_7ve.css',
-  '/assets/index-BDP6aY6S.js'
+  '/icon.svg'
 ];
 
 // External resources to cache
