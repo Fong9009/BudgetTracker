@@ -80,16 +80,34 @@ export class MongoDBStorage implements IStorage {
 
   // User methods
   async createUser(userData: RegisterUser): Promise<User> {
-    const hashedPassword = await hashPassword(userData.password);
-    
-    // Encrypt sensitive data before saving
-    const encryptedUserData = EncryptionService.encryptObject({
-      ...userData,
-      password: hashedPassword
-    }, ['email']);
-    
-    const user = await UserModel.create(encryptedUserData);
-    return this.transformUser(user);
+    try {
+      console.log("Storage: Starting user creation for:", userData.email);
+      
+      const hashedPassword = await hashPassword(userData.password);
+      console.log("Storage: Password hashed successfully");
+      
+      // Remove confirmPassword and encrypt sensitive data before saving
+      const { confirmPassword, ...userDataWithoutConfirm } = userData;
+      console.log("Storage: Removed confirmPassword field");
+      
+      const encryptedUserData = EncryptionService.encryptObject({
+        ...userDataWithoutConfirm,
+        password: hashedPassword
+      }, ['email']);
+      console.log("Storage: Data encrypted successfully");
+      
+      console.log("Storage: Creating user in database...");
+      const user = await UserModel.create(encryptedUserData);
+      console.log("Storage: User created in database:", user._id);
+      
+      const transformedUser = this.transformUser(user);
+      console.log("Storage: User transformed successfully");
+      
+      return transformedUser;
+    } catch (error) {
+      console.error("Storage: Error in createUser:", error);
+      throw error;
+    }
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {

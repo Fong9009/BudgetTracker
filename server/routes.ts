@@ -23,18 +23,17 @@ import { validateRequest, validateQuery, validateRequestAndQuery, handleValidati
 import { z } from "zod";
 import { sendEmail } from "./mail";
 import crypto from "crypto";
-import { checkRedisHealth } from "./redis";
+import { EncryptionService } from "./encryption";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Health check endpoint
   app.get("/api/health", async (req, res) => {
     try {
-      const redisHealth = await checkRedisHealth();
       res.json({
         status: "healthy",
         timestamp: new Date().toISOString(),
         services: {
-          redis: redisHealth ? "connected" : "disconnected"
+          database: "connected"
         }
       });
     } catch (error) {
@@ -46,20 +45,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Test encryption endpoint
+  app.get("/api/test-encryption", (req, res) => {
+    try {
+      const testData = "test@example.com";
+      const encrypted = EncryptionService.encrypt(testData);
+      const decrypted = EncryptionService.decrypt(encrypted);
+      
+      res.json({
+        success: true,
+        original: testData,
+        encrypted: encrypted,
+        decrypted: decrypted,
+        matches: testData === decrypted
+      });
+    } catch (error) {
+      console.error("Encryption test error:", error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  // Test MongoDB endpoint
+  app.get("/api/test-mongodb", async (req, res) => {
+    try {
+      const { UserModel } = await import("@shared/schema");
+      const userCount = await UserModel.countDocuments();
+      
+      res.json({
+        success: true,
+        userCount: userCount,
+        message: "MongoDB connection working"
+      });
+    } catch (error) {
+      console.error("MongoDB test error:", error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
   // Authentication routes
   app.post("/api/auth/register", validateRequest(registerUserSchema), async (req, res) => {
     try {
       const validatedData = req.body;
+      console.log("Registration attempt for:", validatedData.email);
       
       // Check if user already exists
       const existingUser = await storage.getUserByEmail(validatedData.email);
       if (existingUser) {
+        console.log("User already exists:", validatedData.email);
         return res.status(400).json({ message: "User already exists with this email" });
       }
       
+      console.log("Creating user...");
       const user = await storage.createUser(validatedData);
-      const tokenPair = generateTokenPair(user._id);
+      console.log("User created successfully:", user._id);
       
+      console.log("Generating token pair...");
+      const tokenPair = generateTokenPair(user._id);
+      console.log("Token pair generated successfully");
+      
+      console.log("Sending success response...");
       res.status(201).json({
         message: "User created successfully",
         accessToken: tokenPair.accessToken,
@@ -71,7 +121,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           email: user.email
         }
       });
+      console.log("Registration completed successfully");
     } catch (error) {
+      console.error("Registration error details:", error);
+      console.error("Error stack:", error instanceof Error ? error.stack : 'No stack trace');
       res.status(500).json({ message: "Failed to create user" });
     }
   });

@@ -3,7 +3,6 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { storage } from "./storage";
-import { blacklistToken as redisBlacklistToken, isTokenBlacklisted as redisIsTokenBlacklisted } from "./redis";
 import type { User as CustomUser } from "@shared/schema";
 
 declare global {
@@ -22,8 +21,23 @@ export interface TokenPayload {
   type: 'access' | 'refresh';
 }
 
-const JWT_SECRET = process.env.JWT_SECRET;
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
+// Lazy-load JWT secrets to ensure environment variables are loaded
+function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error('JWT_SECRET is not configured');
+  }
+  return secret;
+}
+
+function getJwtRefreshSecret(): string {
+  const secret = process.env.JWT_REFRESH_SECRET;
+  if (!secret) {
+    throw new Error('JWT_REFRESH_SECRET is not configured');
+  }
+  return secret;
+}
+
 const ACCESS_TOKEN_EXPIRY = '15m'; // Short-lived access tokens
 const REFRESH_TOKEN_EXPIRY = '7d'; // Longer-lived refresh tokens
 
@@ -40,9 +54,7 @@ export const comparePassword = async (password: string, hashedPassword: string):
 };
 
 export const generateAccessToken = (userId: string, tokenId: string): string => {
-  if (!JWT_SECRET) {
-    throw new Error('JWT_SECRET is not configured');
-  }
+  const JWT_SECRET = getJwtSecret();
   return jwt.sign(
     { userId, tokenId, type: 'access' } as TokenPayload, 
     JWT_SECRET, 
@@ -51,9 +63,7 @@ export const generateAccessToken = (userId: string, tokenId: string): string => 
 };
 
 export const generateRefreshToken = (userId: string, tokenId: string): string => {
-  if (!JWT_REFRESH_SECRET) {
-    throw new Error('JWT_REFRESH_SECRET is not configured');
-  }
+  const JWT_REFRESH_SECRET = getJwtRefreshSecret();
   return jwt.sign(
     { userId, tokenId, type: 'refresh' } as TokenPayload, 
     JWT_REFRESH_SECRET, 
@@ -62,17 +72,13 @@ export const generateRefreshToken = (userId: string, tokenId: string): string =>
 };
 
 export const verifyAccessToken = (token: string): TokenPayload => {
-  if (!JWT_SECRET) {
-    throw new Error('JWT_SECRET is not configured');
-  }
+  const JWT_SECRET = getJwtSecret();
   const decoded = jwt.verify(token, JWT_SECRET);
   return decoded as TokenPayload;
 };
 
 export const verifyRefreshToken = (token: string): TokenPayload => {
-  if (!JWT_REFRESH_SECRET) {
-    throw new Error('JWT_REFRESH_SECRET is not configured');
-  }
+  const JWT_REFRESH_SECRET = getJwtRefreshSecret();
   const decoded = jwt.verify(token, JWT_REFRESH_SECRET);
   return decoded as TokenPayload;
 };
@@ -86,25 +92,11 @@ export const generateTokenPair = (userId: string): { accessToken: string; refres
 };
 
 export const blacklistToken = async (token: string): Promise<void> => {
-  try {
-    // Try Redis first
-    await redisBlacklistToken(token);
-  } catch (error) {
-    // Fallback to in-memory storage
-    console.warn('Redis unavailable, using in-memory blacklist');
-    tokenBlacklist.add(token);
-  }
+  tokenBlacklist.add(token);
 };
 
 export const isTokenBlacklisted = async (token: string): Promise<boolean> => {
-  try {
-    // Try Redis first
-    return await redisIsTokenBlacklisted(token);
-  } catch (error) {
-    // Fallback to in-memory storage
-    console.warn('Redis unavailable, checking in-memory blacklist');
-    return tokenBlacklist.has(token);
-  }
+  return tokenBlacklist.has(token);
 };
 
 export const authMiddleware = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
