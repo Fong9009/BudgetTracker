@@ -1,18 +1,39 @@
 import { Request, Response, NextFunction } from 'express';
 import { body, validationResult } from 'express-validator';
 
-// Input sanitization middleware
+// Enhanced input sanitization middleware
 export const sanitizeInput = (req: Request, res: Response, next: NextFunction) => {
-  // Sanitize common fields
+  const sanitizeString = (str: string): string => {
+    return str
+      // Remove HTML tags
+      .replace(/<[^>]*>/g, '')
+      // Remove script tags and content
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+      // Remove javascript: protocol
+      .replace(/javascript:/gi, '')
+      // Remove event handlers
+      .replace(/on\w+\s*=/gi, '')
+      // Remove data: URLs
+      .replace(/data:\s*[^;]*;base64,/gi, '')
+      // Remove vbscript: protocol
+      .replace(/vbscript:/gi, '')
+      // Remove file: protocol
+      .replace(/file:/gi, '')
+      // Remove potential SQL injection patterns
+      .replace(/('|"|;|--|\/\*|\*\/|xp_|sp_|exec|execute|insert|select|delete|update|drop|create|alter|declare)/gi, '')
+      // Trim whitespace
+      .trim();
+  };
+
+  // Sanitize request body
   if (req.body) {
     Object.keys(req.body).forEach(key => {
       if (typeof req.body[key] === 'string') {
-        // Remove potential XSS vectors
-        req.body[key] = req.body[key]
-          .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-          .replace(/javascript:/gi, '')
-          .replace(/on\w+\s*=/gi, '')
-          .trim();
+        req.body[key] = sanitizeString(req.body[key]);
+      } else if (Array.isArray(req.body[key])) {
+        req.body[key] = req.body[key].map((item: any) => 
+          typeof item === 'string' ? sanitizeString(item) : item
+        );
       }
     });
   }
@@ -21,11 +42,16 @@ export const sanitizeInput = (req: Request, res: Response, next: NextFunction) =
   if (req.query) {
     Object.keys(req.query).forEach(key => {
       if (typeof req.query[key] === 'string') {
-        req.query[key] = (req.query[key] as string)
-          .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-          .replace(/javascript:/gi, '')
-          .replace(/on\w+\s*=/gi, '')
-          .trim();
+        req.query[key] = sanitizeString(req.query[key] as string);
+      }
+    });
+  }
+
+  // Sanitize URL parameters
+  if (req.params) {
+    Object.keys(req.params).forEach(key => {
+      if (typeof req.params[key] === 'string') {
+        req.params[key] = sanitizeString(req.params[key]);
       }
     });
   }
