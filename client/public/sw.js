@@ -1,4 +1,4 @@
-const CACHE_NAME = 'finance-tracker-v6';
+const CACHE_NAME = 'finance-tracker-v7';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -132,14 +132,22 @@ async function handleApiRequest(request) {
       // Cache successful API responses
       const responseClone = response.clone();
       const apiCache = await caches.open(API_CACHE_NAME);
-      await apiCache.put(cacheKey, responseClone);
+      
+      // Create a proper Request object for caching
+      const cacheRequest = new Request(cacheKey, {
+        method: 'GET',
+        headers: request.headers
+      });
+      
+      await apiCache.put(cacheRequest, responseClone);
       
       // Set cache expiration
       const metadata = {
         timestamp: Date.now(),
         expires: Date.now() + API_CACHE_DURATION
       };
-      await apiCache.put(`${cacheKey}:metadata`, new Response(JSON.stringify(metadata)));
+      const metadataRequest = new Request(`${cacheKey}:metadata`, { method: 'GET' });
+      await apiCache.put(metadataRequest, new Response(JSON.stringify(metadata)));
     }
     
     return response;
@@ -148,11 +156,13 @@ async function handleApiRequest(request) {
     
     // Try to serve from cache
     const apiCache = await caches.open(API_CACHE_NAME);
-    const cachedResponse = await apiCache.match(cacheKey);
+    const cacheRequest = new Request(cacheKey, { method: 'GET' });
+    const cachedResponse = await apiCache.match(cacheRequest);
     
     if (cachedResponse) {
       // Check if cache is still valid
-      const metadataResponse = await apiCache.match(`${cacheKey}:metadata`);
+      const metadataRequest = new Request(`${cacheKey}:metadata`, { method: 'GET' });
+      const metadataResponse = await apiCache.match(metadataRequest);
       if (metadataResponse) {
         const metadata = JSON.parse(await metadataResponse.text());
         if (Date.now() < metadata.expires) {
@@ -189,15 +199,26 @@ function getOfflineData(pathname) {
   // Return cached data or empty arrays
   switch (pathname) {
     case '/api/transactions':
-      return [];
+      return { data: [], message: 'Offline mode - showing cached data' };
     case '/api/accounts':
-      return [];
+      return { data: [], message: 'Offline mode - showing cached data' };
     case '/api/categories':
-      return [];
+      return { data: [], message: 'Offline mode - showing cached data' };
     case '/api/analytics':
-      return { totalBalance: 0, monthlyIncome: 0, monthlyExpenses: 0 };
+      return { 
+        data: { 
+          totalBalance: 0, 
+          monthlyIncome: 0, 
+          monthlyExpenses: 0,
+          spendingData: [],
+          incomeData: []
+        }, 
+        message: 'Offline mode - showing cached data' 
+      };
+    case '/api/analytics/spending-data':
+      return { data: [], message: 'Offline mode - showing cached data' };
     default:
-      return null;
+      return { data: null, message: 'Offline mode - endpoint not available' };
   }
 }
 
