@@ -74,20 +74,19 @@ export function Sidebar() {
         </nav>
 
         {/* Install App Button */}
-        {isInstallable && (
-          <div className="px-2 mt-4">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleInstallApp}
-              disabled={isInstalling}
-              className="w-full justify-start"
-            >
-              <Smartphone className="h-4 w-4 mr-2" />
-              {isInstalling ? 'Installing...' : 'Install App'}
-            </Button>
-          </div>
-        )}
+        <div className="px-2 mt-4">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleInstallApp}
+            disabled={!isInstallable || isInstalling}
+            className="w-full justify-start"
+            title={isInstallable ? 'Install this app' : 'App cannot be installed on this device/browser'}
+          >
+            <Smartphone className="h-4 w-4 mr-2" />
+            {isInstalling ? 'Installing...' : 'Install App'}
+          </Button>
+        </div>
       </div>
     </div>
   );

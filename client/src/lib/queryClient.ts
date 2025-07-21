@@ -120,6 +120,7 @@ async function getCSRFToken(): Promise<string | null> {
     
     if (response.ok) {
       const data = await response.json();
+      console.log('[CSRF] Fetched token:', data.csrfToken);
       return data.csrfToken;
     }
   } catch (error) {
@@ -127,6 +128,13 @@ async function getCSRFToken(): Promise<string | null> {
   }
   
   return null;
+}
+
+// After login or token refresh, always fetch a new CSRF token
+export async function loginAndFetchCSRF(loginFn: () => Promise<any>) {
+  const result = await loginFn();
+  await getCSRFToken();
+  return result;
 }
 
 export async function apiRequest(
@@ -141,6 +149,9 @@ export async function apiRequest(
   // Don't send CSRF tokens for auth endpoints
   const isAuthEndpoint = url.includes('/auth/');
   const csrfToken = (method !== 'GET' && !isAuthEndpoint) ? await getCSRFToken() : null;
+  if (csrfToken) {
+    console.log(`[CSRF] Sending token for ${method} ${url}:`, csrfToken);
+  }
   
   const headers = {
     "Content-Type": "application/json",
