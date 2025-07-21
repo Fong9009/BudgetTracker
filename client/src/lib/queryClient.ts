@@ -133,7 +133,8 @@ export async function apiRequest(
   method: string,
   url: string,
   data?: any,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  retryOnCSRFError = true
 ): Promise<any> {
   const token = await getValidToken();
   
@@ -156,7 +157,46 @@ export async function apiRequest(
     ...options,
   });
 
-  await throwIfResNotOk(res);
+  if (!res.ok) {
+    // If CSRF error and allowed to retry, fetch new token and retry once
+    if (
+      res.status === 403 &&
+      retryOnCSRFError &&
+      method !== 'GET' &&
+      !isAuthEndpoint
+    ) {
+      try {
+        const errorJson = await res.clone().json();
+        if (
+          errorJson?.message?.toLowerCase().includes('csrf') ||
+          errorJson?.error?.toLowerCase().includes('csrf')
+        ) {
+          // Fetch new CSRF token and retry once
+          const newCSRFToken = await getCSRFToken();
+          const retryHeaders = {
+            ...headers,
+            "X-CSRF-Token": newCSRFToken,
+          };
+          const retryRes = await fetch(url, {
+            method,
+            headers: retryHeaders,
+            credentials: "include",
+            ...(data && { body: JSON.stringify(data) }),
+            ...options,
+          });
+          await throwIfResNotOk(retryRes);
+          const contentType = retryRes.headers.get("content-type");
+          if (retryRes.status === 204 || !contentType || !contentType.includes("application/json")) {
+            return null;
+          }
+          return retryRes.json();
+        }
+      } catch (e) {
+        // Ignore JSON parse errors and fall through to throw
+      }
+    }
+    await throwIfResNotOk(res);
+  }
   
   // Handle empty responses (like 204 No Content)
   const contentType = res.headers.get("content-type");
