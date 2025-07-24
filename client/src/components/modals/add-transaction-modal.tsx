@@ -135,10 +135,14 @@ export function AddTransactionModal({ open, onOpenChange }: AddTransactionModalP
         const response = await apiRequest("POST", "/api/transactions", data);
         
         // Replace optimistic data with real data
-        queryClient.setQueryData(['/api/transactions'], (old: any[] = []) => {
-          return old.map(item => 
-            item._id === optimisticTransaction._id ? response : item
-          );
+        queryClient.setQueryData(['/api/transactions'], (old: any = {}) => {
+          if (!old || !Array.isArray(old.transactions)) return old;
+          return {
+            ...old,
+            transactions: old.transactions.map((item: any) =>
+              item._id === optimisticTransaction._id ? response : item
+            ),
+          };
         });
         
         return response;

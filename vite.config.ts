@@ -2,12 +2,29 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
 import { fileURLToPath } from "url";
+import { VitePWA } from 'vite-plugin-pwa';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   plugins: [
     react(),
+    VitePWA({
+      registerType: 'autoUpdate',
+      manifest: {
+        name: 'Finance Tracker',
+        short_name: 'FinanceTracker',
+        description: 'Personal finance management application',
+        theme_color: '#3b82f6',
+        icons: [
+          {
+            src: '/icon.svg',
+            sizes: '192x192',
+            type: 'image/svg+xml'
+          }
+        ]
+      }
+    })
   ],
   resolve: {
     alias: {

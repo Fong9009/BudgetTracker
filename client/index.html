@@ -37,6 +37,18 @@
             .then((registration) => {
               console.log('✅ Service Worker registered successfully:', registration);
               console.log('📱 PWA should be installable now');
+              // Auto-reload when a new service worker is installed
+              registration.onupdatefound = () => {
+                const installingWorker = registration.installing;
+                installingWorker.onstatechange = () => {
+                  if (installingWorker.state === 'installed') {
+                    if (navigator.serviceWorker.controller) {
+                      // New update available, reload automatically
+                      window.location.reload();
+                    }
+                  }
+                };
+              };
             })
             .catch((registrationError) => {
               console.error('❌ Service Worker registration failed:', registrationError);
