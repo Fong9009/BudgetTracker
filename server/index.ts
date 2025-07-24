@@ -94,11 +94,11 @@ app.use('/api', limiter);
 
 // Stricter rate limiting for auth routes
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: parseInt(process.env.AUTH_RATE_LIMIT_MAX || '5'), // limit each IP to 5 requests per windowMs
+  windowMs: 5 * 60 * 1000, // 5 minutes
+  max: 20, // 20 attempts per 5 minutes per IP
   message: {
-    message: 'Too many authentication attempts, please try again later.',
-    retryAfter: 15 * 60,
+    message: 'Too many login attempts. Please try again in 5 minutes or reset your password.',
+    retryAfter: 5 * 60, // 5 minutes in seconds
   },
   standardHeaders: true,
   legacyHeaders: false,
