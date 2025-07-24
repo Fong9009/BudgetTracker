@@ -2,6 +2,8 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from "@/components/ui/toaster";
 import { PWAInstallPrompt } from './components/ui/pwa-install-prompt';
 import { OfflineIndicator } from './components/ui/offline-indicator';
+import { OfflineStatus } from './components/ui/offline-status';
+import { Walkthrough, useWalkthrough } from './components/ui/walkthrough';
 import { queryClient } from '@/lib/queryClient';
 import { useLocation, Switch, Route, Redirect } from 'wouter';
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
@@ -38,6 +40,7 @@ const ProtectedRoute = ({ component: Component, ...rest }: any) => {
 function App() {
   const { isAuthenticated, logout, isLoading } = useAuth();
   const [, setLocation] = useLocation();
+  const { isWalkthroughOpen, closeWalkthrough, openWalkthrough } = useWalkthrough();
 
   // Show loading screen during initial authentication check
   if (isLoading) {
@@ -74,7 +77,7 @@ function App() {
     <div className="flex h-screen bg-background">
       <Sidebar />
       <div className="flex flex-col flex-1">
-        <TopBar onLogout={logout} />
+        <TopBar onLogout={logout} onOpenHelp={openWalkthrough} />
         <main className="flex-1 overflow-y-auto">
           <Switch>
             <ProtectedRoute path="/dashboard" component={Dashboard} />
@@ -100,6 +103,8 @@ function App() {
           </Switch>
         </main>
       </div>
+      <Walkthrough isOpen={isWalkthroughOpen} onClose={closeWalkthrough} />
+      <OfflineStatus />
     </div>
   );
 }

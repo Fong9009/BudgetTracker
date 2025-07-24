@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
-import { Search, Bell, LogOut, User, ChevronDown, TrendingUp, TrendingDown, DollarSign, Calendar, AlertCircle, Target, PiggyBank, X, Trash2 } from "lucide-react";
+import { Search, Bell, LogOut, User, ChevronDown, TrendingUp, TrendingDown, DollarSign, Calendar, AlertCircle, Target, PiggyBank, X, Trash2, HelpCircle } from "lucide-react";
 import { MobileMenu } from './mobile-menu';
 import { useLocation } from "wouter";
 import { useState, useEffect } from "react";
@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 
 interface TopBarProps {
   onLogout: () => void;
+  onOpenHelp?: () => void;
 }
 
 interface Notification {
@@ -44,7 +45,7 @@ interface SpendingData {
   spendingChange: number;
 }
 
-export function TopBar({ onLogout }: TopBarProps) {
+export function TopBar({ onLogout, onOpenHelp }: TopBarProps) {
   const { user, isAuthenticated } = useAuth();
   const [, setLocation] = useLocation();
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -233,6 +234,19 @@ export function TopBar({ onLogout }: TopBarProps) {
         </div>
         
         <div className="ml-4 flex items-center md:ml-6 space-x-2">
+          {/* Help Button */}
+          {onOpenHelp && (
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={onOpenHelp}
+              className="text-muted-foreground hover:text-foreground"
+              title="Help & Tutorial"
+            >
+              <HelpCircle className="h-5 w-5" />
+            </Button>
+          )}
+          
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground relative">

@@ -49,25 +49,31 @@ export function Sidebar() {
         <nav className="mt-8 flex-1 px-2 space-y-1">
           {navigation.map((item) => {
             const isActive = location === item.href;
+            const walkthroughId = item.name === 'Dashboard' ? 'dashboard' :
+                                 item.name === 'Accounts' ? 'accounts-nav' :
+                                 item.name === 'Categories' ? 'categories-nav' :
+                                 item.name === 'Transactions' ? 'transactions-nav' : '';
+            
             return (
               <Link 
                 key={item.name} 
                 href={item.href}
+                data-walkthrough={walkthroughId}
+                className={cn(
+                  "group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors",
+                  isActive
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                )}
+              >
+                <i
                   className={cn(
-                    "group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors",
-                    isActive
-                      ? "bg-primary/10 text-primary"
-                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                    item.icon,
+                    "mr-3 text-sm",
+                    isActive ? "text-primary" : "text-muted-foreground"
                   )}
-                >
-                  <i
-                    className={cn(
-                      item.icon,
-                      "mr-3 text-sm",
-                      isActive ? "text-primary" : "text-muted-foreground"
-                    )}
-                  />
-                  {item.name}
+                />
+                {item.name}
               </Link>
             );
           })}
@@ -82,6 +88,7 @@ export function Sidebar() {
             disabled={!isInstallable || isInstalling}
             className="w-full justify-start"
             title={isInstallable ? 'Install this app' : 'App cannot be installed on this device/browser'}
+            data-walkthrough="install-app"
           >
             <Smartphone className="h-4 w-4 mr-2" />
             {isInstalling ? 'Installing...' : 'Install App'}
