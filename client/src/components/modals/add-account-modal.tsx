@@ -75,7 +75,8 @@ export function AddAccountModal({ open, onOpenChange }: AddAccountModalProps) {
         const response = await apiRequest("POST", "/api/accounts", data);
         
         // Replace optimistic data with real data
-        queryClient.setQueryData(['/api/accounts'], (old: any[] = []) => {
+        queryClient.setQueryData(['/api/accounts'], (old: any) => {
+          if (!Array.isArray(old)) return [response];
           return old.map(item => 
             item._id === optimisticAccount._id ? response : item
           );

@@ -97,7 +97,8 @@ export function AddCategoryModal({ open, onOpenChange }: AddCategoryModalProps) 
         console.log("Category creation response:", response);
         
         // Replace optimistic data with real data
-        queryClient.setQueryData(['/api/categories'], (old: any[] = []) => {
+        queryClient.setQueryData(['/api/categories'], (old: any) => {
+          if (!Array.isArray(old)) return [response];
           return old.map(item => 
             item._id === optimisticCategory._id ? response : item
           );

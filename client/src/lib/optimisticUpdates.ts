@@ -33,7 +33,8 @@ export const optimisticUpdates = {
     });
 
     // Update account balance
-    queryClient.setQueryData(['/api/accounts'], (old: Account[] = []) => {
+    queryClient.setQueryData(['/api/accounts'], (old: any) => {
+      if (!Array.isArray(old)) return old;
       return old.map(account => {
         if (account._id === newTransaction.accountId) {
           const amount = newTransaction.amount;
@@ -60,7 +61,8 @@ export const optimisticUpdates = {
       updatedAt: new Date(),
     };
 
-    queryClient.setQueryData(['/api/accounts'], (old: Account[] = []) => {
+    queryClient.setQueryData(['/api/accounts'], (old: any) => {
+      if (!Array.isArray(old)) return [optimisticAccount];
       return [...old, optimisticAccount];
     });
 
@@ -87,12 +89,14 @@ export const optimisticUpdates = {
       updatedAt: new Date(),
     };
 
-    queryClient.setQueryData(['/api/categories'], (old: Category[] = []) => {
+    queryClient.setQueryData(['/api/categories'], (old: any) => {
+      if (!Array.isArray(old)) return [optimisticCategory];
       return [...old, optimisticCategory];
     });
 
     // Also update categories with counts query
-    queryClient.setQueryData(['/api/categories/with-counts'], (old: (Category & { transactionCount: number })[] = []) => {
+    queryClient.setQueryData(['/api/categories/with-counts'], (old: any) => {
+      if (!Array.isArray(old)) return [{ ...optimisticCategory, transactionCount: 0 }];
       return [...old, { ...optimisticCategory, transactionCount: 0 }];
     });
 
@@ -105,13 +109,15 @@ export const optimisticUpdates = {
                     type === 'account' ? ['/api/accounts'] : 
                     ['/api/categories'];
 
-    queryClient.setQueryData(queryKey, (old: any[] = []) => {
+    queryClient.setQueryData(queryKey, (old: any) => {
+      if (!Array.isArray(old)) return old;
       return old.filter(item => item._id !== tempId);
     });
 
     // Also remove from categories with counts if it's a category
     if (type === 'category') {
-      queryClient.setQueryData(['/api/categories/with-counts'], (old: (Category & { transactionCount: number })[] = []) => {
+      queryClient.setQueryData(['/api/categories/with-counts'], (old: any) => {
+        if (!Array.isArray(old)) return old;
         return old.filter(item => item._id !== tempId);
       });
     }

@@ -163,7 +163,7 @@ export default function Transactions() {
     },
   });
 
-  const filteredCategoriesForDropdown = categories.filter(c => c.name !== 'Transfer');
+  const filteredCategoriesForDropdown = Array.isArray(categories) ? categories.filter(c => c.name !== 'Transfer') : [];
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {

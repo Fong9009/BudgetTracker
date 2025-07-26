@@ -174,11 +174,8 @@ async function handleApiRequest(request) {
     
     // Return offline response for GET requests
     if (request.method === 'GET') {
-      return new Response(JSON.stringify({
-        message: 'Offline mode - data may be outdated',
-        offline: true,
-        data: getOfflineData(url.pathname)
-      }), {
+      const offlineData = getOfflineData(url.pathname);
+      return new Response(JSON.stringify(offlineData), {
         headers: { 'Content-Type': 'application/json' }
       });
     }
@@ -199,26 +196,35 @@ function getOfflineData(pathname) {
   // Return cached data or empty arrays
   switch (pathname) {
     case '/api/transactions':
-      return { data: [], message: 'Offline mode - showing cached data' };
+      return { transactions: [], total: 0, totalPages: 0, currentPage: 1 };
     case '/api/accounts':
-      return { data: [], message: 'Offline mode - showing cached data' };
+      return [];
     case '/api/categories':
-      return { data: [], message: 'Offline mode - showing cached data' };
-    case '/api/analytics':
+      return [];
+    case '/api/categories/with-counts':
+      return [];
+    case '/api/analytics/summary':
       return { 
-        data: { 
-          totalBalance: 0, 
-          monthlyIncome: 0, 
-          monthlyExpenses: 0,
-          spendingData: [],
-          incomeData: []
-        }, 
-        message: 'Offline mode - showing cached data' 
+        totalBalance: "0.00", 
+        monthlyIncome: "0.00", 
+        monthlyExpenses: "0.00",
+        savingsRate: "0.0"
       };
+    case '/api/analytics/spending-by-category':
+      return [];
     case '/api/analytics/spending-data':
-      return { data: [], message: 'Offline mode - showing cached data' };
+      return { 
+        totalSpent: 0,
+        monthlyBudget: 2000,
+        weeklyBudget: 500,
+        categorySpending: [],
+        previousWeekSpending: 0,
+        spendingChange: 0,
+        weekStart: new Date().toISOString(),
+        weekEnd: new Date().toISOString()
+      };
     default:
-      return { data: null, message: 'Offline mode - endpoint not available' };
+      return { message: 'Offline mode - endpoint not available' };
   }
 }
 
