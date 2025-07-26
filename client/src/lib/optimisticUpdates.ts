@@ -91,6 +91,11 @@ export const optimisticUpdates = {
       return [...old, optimisticCategory];
     });
 
+    // Also update categories with counts query
+    queryClient.setQueryData(['/api/categories/with-counts'], (old: (Category & { transactionCount: number })[] = []) => {
+      return [...old, { ...optimisticCategory, transactionCount: 0 }];
+    });
+
     return optimisticCategory;
   },
 
@@ -104,7 +109,15 @@ export const optimisticUpdates = {
       return old.filter(item => item._id !== tempId);
     });
 
+    // Also remove from categories with counts if it's a category
+    if (type === 'category') {
+      queryClient.setQueryData(['/api/categories/with-counts'], (old: (Category & { transactionCount: number })[] = []) => {
+        return old.filter(item => item._id !== tempId);
+      });
+    }
+
     // Invalidate queries to refetch fresh data
     queryClient.invalidateQueries({ queryKey: ['/api/analytics'] });
+    queryClient.invalidateQueries({ queryKey: ['/api/categories/with-counts'] });
   },
 }; 

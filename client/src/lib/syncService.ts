@@ -42,7 +42,17 @@ class SyncService {
       console.log('SyncService: Starting data synchronization...');
       
       // Get sync queue
-      const syncQueue = await offlineDB.getSyncQueue();
+      let syncQueue;
+      try {
+        syncQueue = await offlineDB.getSyncQueue();
+      } catch (error) {
+        if (error instanceof Error && error.message === 'Database not initialized') {
+          console.log('SyncService: Database not initialized, skipping sync');
+          return { success: true, syncedItems: 0, errors: [] };
+        }
+        throw error;
+      }
+      
       console.log(`SyncService: Found ${syncQueue.length} items to sync`);
 
       for (const item of syncQueue) {
@@ -195,9 +205,14 @@ class SyncService {
       clearInterval(this.syncInterval);
     }
 
-    this.syncInterval = setInterval(() => {
+    this.syncInterval = setInterval(async () => {
       if (this.isOnline && !this.syncInProgress) {
-        this.syncData();
+        try {
+          await this.syncData();
+        } catch (error) {
+          // Silently handle errors during periodic sync
+          console.warn('Periodic sync failed:', error);
+        }
       }
     }, 5 * 60 * 1000); // 5 minutes
   }
@@ -225,8 +240,16 @@ class SyncService {
 
   // Get pending sync count
   async getPendingSyncCount(): Promise<number> {
-    const syncQueue = await offlineDB.getSyncQueue();
-    return syncQueue.length;
+    try {
+      const syncQueue = await offlineDB.getSyncQueue();
+      return syncQueue.length;
+    } catch (error) {
+      // If database is not initialized, return 0
+      if (error instanceof Error && error.message === 'Database not initialized') {
+        return 0;
+      }
+      throw error;
+    }
   }
 }
 

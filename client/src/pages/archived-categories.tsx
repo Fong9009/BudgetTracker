@@ -56,6 +56,8 @@ export default function ArchivedCategories() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/categories/archived"] });
       queryClient.invalidateQueries({ queryKey: ["/api/categories"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/categories/with-counts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/analytics"] });
       toast({
         title: "Success",
         description: "Category restored successfully",

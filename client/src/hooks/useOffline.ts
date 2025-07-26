@@ -32,6 +32,9 @@ export const useOffline = () => {
   }, []);
 
   useEffect(() => {
+    // Only set up sync functionality after database is ready
+    if (!isOfflineDBReady) return;
+
     const updateOnlineStatus = () => {
       const online = navigator.onLine;
       setIsOnline(online);
@@ -48,8 +51,13 @@ export const useOffline = () => {
     };
 
     const updatePendingCount = async () => {
-      const count = await getPendingSyncCount();
-      setPendingSyncCount(count);
+      try {
+        const count = await getPendingSyncCount();
+        setPendingSyncCount(count);
+      } catch (error) {
+        console.warn('Failed to get pending sync count:', error);
+        setPendingSyncCount(0);
+      }
     };
 
     // Listen for online/offline events
@@ -70,10 +78,10 @@ export const useOffline = () => {
       clearInterval(syncStatusInterval);
       clearInterval(pendingCountInterval);
     };
-  }, []);
+  }, [isOfflineDBReady]);
 
   const handleManualSync = async () => {
-    if (!isOnline || syncInProgress) return;
+    if (!isOnline || syncInProgress || !isOfflineDBReady) return;
 
     setSyncInProgress(true);
     try {

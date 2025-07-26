@@ -153,7 +153,10 @@ export function AddTransactionModal({ open, onOpenChange }: AddTransactionModalP
       }
     },
     onSuccess: () => {
-      // Only invalidate analytics to refresh calculations
+      // Invalidate all related queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ["/api/transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/categories/with-counts"] });
       queryClient.invalidateQueries({ queryKey: ["/api/analytics"] });
       toast({
         title: "Success",

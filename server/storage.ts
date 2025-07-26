@@ -22,6 +22,7 @@ export interface IStorage {
 
   // Categories
   getCategories(userId: string): Promise<Category[]>;
+  getCategoriesWithTransactionCounts(userId: string): Promise<(Category & { transactionCount: number })[]>;
   getCategory(id: string): Promise<Category | undefined>;
   createCategory(category: InsertCategory, userId: string): Promise<Category>;
   updateCategory(id: string, category: Partial<InsertCategory>): Promise<Category | undefined>;
@@ -255,6 +256,27 @@ export class MongoDBStorage implements IStorage {
   async getCategories(userId: string): Promise<Category[]> {
     const categories = await CategoryModel.find({ userId, isArchived: { $ne: true } }).sort({ createdAt: -1 });
     return categories.map(cat => this.transformCategory(cat));
+  }
+
+  async getCategoriesWithTransactionCounts(userId: string): Promise<(Category & { transactionCount: number })[]> {
+    const categories = await CategoryModel.find({ userId, isArchived: { $ne: true } }).sort({ createdAt: -1 });
+    
+    // Get transaction counts for each category
+    const categoriesWithCounts = await Promise.all(
+      categories.map(async (category) => {
+        const transactionCount = await TransactionModel.countDocuments({ 
+          categoryId: category._id, 
+          isArchived: false 
+        });
+        
+        return {
+          ...this.transformCategory(category),
+          transactionCount
+        };
+      })
+    );
+    
+    return categoriesWithCounts;
   }
 
   async getCategory(id: string): Promise<Category | undefined> {

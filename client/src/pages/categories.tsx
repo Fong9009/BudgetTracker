@@ -32,25 +32,25 @@ export default function Categories() {
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
 
-  const { data: categories = [], isLoading } = useQuery<Category[]>({
-    queryKey: ["/api/categories"],
+  const { data: categoriesWithCounts = [], isLoading } = useQuery<(Category & { transactionCount: number })[]>({
+    queryKey: ["/api/categories/with-counts"],
     enabled: isAuthenticated && !authLoading,
     queryFn: async () => {
       const token = await getValidToken();
       if (!token) return [];
       
       try {
-        const response = await fetch("/api/categories", {
+        const response = await fetch("/api/categories/with-counts", {
           headers: { Authorization: `Bearer ${token}` },
           credentials: "include",
         });
         
         if (response.status === 401) return [];
-        if (!response.ok) throw new Error("Failed to fetch categories");
+        if (!response.ok) throw new Error("Failed to fetch categories with transaction counts");
         
         return response.json();
       } catch (error) {
-        console.error("Error fetching categories:", error);
+        console.error("Error fetching categories with transaction counts:", error);
         return [];
       }
     },
@@ -64,7 +64,9 @@ export default function Categories() {
     onSuccess: () => {
       console.log("Category deleted successfully");
       queryClient.invalidateQueries({ queryKey: ["/api/categories"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/categories/with-counts"] });
       queryClient.invalidateQueries({ queryKey: ["/api/categories/archived"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/analytics"] });
       toast({
         title: "Success",
         description: "Category archived successfully. You can restore it from the archive if needed.",
@@ -84,7 +86,7 @@ export default function Categories() {
     },
   });
 
-  const filteredCategories = categories.filter(c => c.name !== 'Transfer');
+  const filteredCategories = categoriesWithCounts.filter(c => c.name !== 'Transfer');
 
   const handleDelete = (id: string) => {
     console.log("handleDelete called with ID:", id);
@@ -181,8 +183,7 @@ export default function Categories() {
                         <div>
                           <p className="font-semibold text-foreground">{category.name}</p>
                           <p className="text-sm text-muted-foreground">
-                            {/* Placeholder for transaction count */}
-                            0 Transactions
+                            {category.transactionCount} Transaction{category.transactionCount !== 1 ? 's' : ''}
                           </p>
                         </div>
                       </div>
@@ -225,7 +226,7 @@ export default function Categories() {
                     </div>
                     <div className="text-center">
                       <p className="text-2xl font-bold text-foreground">
-                        0
+                        {filteredCategories.filter(category => category.transactionCount > 0).length}
                       </p>
                       <p className="text-sm text-muted-foreground">
                         Active This Month
@@ -233,7 +234,7 @@ export default function Categories() {
                     </div>
                     <div className="text-center">
                       <p className="text-2xl font-bold text-foreground">
-                        0
+                        {filteredCategories.reduce((sum, category) => sum + category.transactionCount, 0)}
                       </p>
                       <p className="text-sm text-muted-foreground">
                         Total Transactions

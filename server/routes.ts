@@ -436,6 +436,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/categories/with-counts", authMiddleware, async (req: AuthenticatedRequest, res) => {
+    try {
+      const categoriesWithCounts = await storage.getCategoriesWithTransactionCounts(req.user!._id);
+      res.json(categoriesWithCounts);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch categories with transaction counts" });
+    }
+  });
+
   // Category archive routes (must be before parameterized routes)
   app.get("/api/categories/archived", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {

@@ -112,6 +112,10 @@ export function AddCategoryModal({ open, onOpenChange }: AddCategoryModalProps) 
     },
     onSuccess: () => {
       console.log("Category creation successful");
+      // Invalidate categories queries to refresh the data
+      queryClient.invalidateQueries({ queryKey: ["/api/categories"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/categories/with-counts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/analytics"] });
       toast({
         title: "Success",
         description: "Category added successfully",

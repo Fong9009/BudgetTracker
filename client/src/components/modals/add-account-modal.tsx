@@ -89,7 +89,8 @@ export function AddAccountModal({ open, onOpenChange }: AddAccountModalProps) {
       }
     },
     onSuccess: () => {
-      // Only invalidate analytics to refresh calculations
+      // Invalidate all related queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ["/api/accounts"] });
       queryClient.invalidateQueries({ queryKey: ["/api/analytics"] });
       toast({
         title: "Success",
