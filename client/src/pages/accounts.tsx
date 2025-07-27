@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,14 +15,15 @@ import {
 import { AddAccountModal } from "@/components/modals/add-account-modal";
 import { EditAccountModal } from "@/components/modals/edit-account-modal";
 import { TransferModal } from "@/components/modals/transfer-modal";
-import { formatCurrency, getAccountTypeIcon, getAccountTypeColor } from "@/lib/utils";
+import { SortableGrid } from "@/components/ui/sortable-grid";
+import { formatCurrency, getAccountTypeIcon, getAccountTypeColor, getTransactionTypeColor } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { getValidToken } from "@/lib/queryClient";
-import { Plus, Edit2, Trash2, ArrowRightLeft, Archive } from "lucide-react";
+import { Plus, Edit2, Trash2, ArrowRightLeft, Archive, X, Receipt } from "lucide-react";
 import { useLocation } from "wouter";
-import type { Account } from "@shared/schema";
+import type { Account, TransactionWithDetails } from "@shared/schema";
 
 export default function Accounts() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
@@ -31,6 +32,8 @@ export default function Accounts() {
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
   const [deleteAccount, setDeleteAccount] = useState<string | null>(null);
+  const [accountOrder, setAccountOrder] = useState<string[]>([]);
+  const [viewingAccountTransactions, setViewingAccountTransactions] = useState<Account | null>(null);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -51,9 +54,35 @@ export default function Accounts() {
         if (response.status === 401) return [];
         if (!response.ok) throw new Error("Failed to fetch accounts");
         
-        return response.json();
+        const data = await response.json();
+        return data;
       } catch (error) {
         console.error("Error fetching accounts:", error);
+        return [];
+      }
+    },
+  });
+
+  const { data: accountTransactions = [], isLoading: transactionsLoading } = useQuery<TransactionWithDetails[]>({
+    queryKey: ["/api/transactions", viewingAccountTransactions?._id],
+    enabled: isAuthenticated && !authLoading && !!viewingAccountTransactions,
+    queryFn: async () => {
+      const token = await getValidToken();
+      if (!token || !viewingAccountTransactions) return [];
+      
+      try {
+        const response = await fetch(`/api/transactions?accountId=${viewingAccountTransactions._id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+          credentials: "include",
+        });
+        
+        if (response.status === 401) return [];
+        if (!response.ok) throw new Error("Failed to fetch account transactions");
+        
+        const data = await response.json();
+        return data.transactions || [];
+      } catch (error) {
+        console.error("Error fetching account transactions:", error);
         return [];
       }
     },
@@ -91,6 +120,54 @@ export default function Accounts() {
     setSelectedAccount(account);
     setShowEditAccount(true);
   };
+
+  const handleViewTransactions = (account: Account) => {
+    setViewingAccountTransactions(account);
+  };
+
+  const handleCloseTransactions = () => {
+    setViewingAccountTransactions(null);
+  };
+
+  const handleReorder = (newOrder: Account[]) => {
+    setAccountOrder(newOrder.map(account => account._id));
+    // Here you could also save the order to localStorage or send to server
+    localStorage.setItem('accountOrder', JSON.stringify(newOrder.map(account => account._id)));
+  };
+
+  // Sort accounts based on saved order or default order
+  const sortedAccounts = React.useMemo(() => {
+    if (accountOrder.length > 0) {
+      const orderMap = new Map(accountOrder.map((id, index) => [id, index]));
+      const sorted = [...accounts].sort((a, b) => {
+        const aIndex = orderMap.get(a._id) ?? Number.MAX_SAFE_INTEGER;
+        const bIndex = orderMap.get(b._id) ?? Number.MAX_SAFE_INTEGER;
+        return aIndex - bIndex;
+      });
+      return sorted;
+    }
+    return accounts;
+  }, [accounts, accountOrder]);
+
+  // Load saved order on mount
+  React.useEffect(() => {
+    const savedOrder = localStorage.getItem('accountOrder');
+    if (savedOrder) {
+      try {
+        const parsedOrder = JSON.parse(savedOrder);
+        // Validate that the saved order contains valid IDs
+        if (Array.isArray(parsedOrder) && parsedOrder.every(id => typeof id === 'string')) {
+          setAccountOrder(parsedOrder);
+        } else {
+          console.warn('Invalid account order found in localStorage, clearing it');
+          localStorage.removeItem('accountOrder');
+        }
+      } catch (error) {
+        console.error('Failed to parse saved account order:', error);
+        localStorage.removeItem('accountOrder');
+      }
+    }
+  }, []);
 
   return (
     <div className="flex-1 relative overflow-y-auto focus:outline-none">
@@ -196,9 +273,14 @@ export default function Accounts() {
                 </Button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {accounts.map((account) => (
-                  <Card key={account._id} className="hover:shadow-md transition-shadow">
+              <SortableGrid
+                items={sortedAccounts}
+                onReorder={handleReorder}
+                className="md:grid-cols-2 lg:grid-cols-3"
+                getId={(account) => account._id}
+              >
+                {(account) => (
+                  <Card className="hover:shadow-md transition-shadow">
                     <CardContent className="pt-6">
                       <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center">
@@ -248,12 +330,110 @@ export default function Accounts() {
                           </p>
                         </div>
                       )}
+
+                      <div className="mt-4 pt-4 border-t border-border">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleViewTransactions(account)}
+                          className="w-full"
+                        >
+                          <Receipt className="h-4 w-4 mr-2" />
+                          View Transactions
+                        </Button>
+                      </div>
                     </CardContent>
                   </Card>
-                ))}
-              </div>
+                )}
+              </SortableGrid>
             )}
           </div>
+
+          {/* Account Transactions View */}
+          {viewingAccountTransactions && (
+            <div className="mt-8">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2">
+                      <Receipt className="h-5 w-5" />
+                      {viewingAccountTransactions.name} - Transactions
+                    </CardTitle>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleCloseTransactions}
+                    >
+                      <X className="h-4 w-4 mr-2" />
+                      Close
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {transactionsLoading ? (
+                    <div className="space-y-4">
+                      {[...Array(5)].map((_, i) => (
+                        <div key={i} className="animate-pulse flex items-center justify-between p-4 border-b border-border">
+                          <div className="flex items-center space-x-4">
+                            <div className="w-10 h-10 bg-muted rounded-lg" />
+                            <div className="space-y-2">
+                              <div className="h-4 bg-muted rounded w-32" />
+                              <div className="h-3 bg-muted rounded w-24" />
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <div className="h-4 bg-muted rounded w-20" />
+                            <div className="h-3 bg-muted rounded w-16" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : accountTransactions.length === 0 ? (
+                    <div className="text-center py-8">
+                      <p className="text-muted-foreground">No transactions found for this account.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-0 divide-y divide-border">
+                      {accountTransactions.map((transaction) => (
+                        <div key={transaction._id} className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors">
+                          <div className="flex items-center flex-1">
+                            <div className="flex-shrink-0">
+                              <div
+                                className="w-10 h-10 rounded-lg flex items-center justify-center"
+                                style={{ backgroundColor: transaction.category.color, color: 'white' }}
+                              >
+                                <i className={`${transaction.category.icon} text-sm`} />
+                              </div>
+                            </div>
+                            <div className="ml-4 flex-1">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="text-sm font-medium text-foreground">
+                                    {transaction.description}
+                                  </p>
+                                  <p className="text-sm text-muted-foreground">
+                                    {transaction.category.name}
+                                  </p>
+                                </div>
+                                <div className="text-right">
+                                  <p className={`text-sm font-medium ${getTransactionTypeColor(transaction.type)}`}>
+                                    {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
+                                  </p>
+                                  <p className="text-sm text-muted-foreground">
+                                    {new Date(transaction.date).toLocaleDateString()}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
         </div>
 
         {/* Modals */}

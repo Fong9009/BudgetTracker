@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -840,9 +840,34 @@ export default function Transactions() {
           {/* Transactions List */}
           <Card className="mt-6">
             <CardHeader>
-              <CardTitle>
-                All Transactions ({groupedTransactions.length})
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle>
+                  All Transactions ({groupedTransactions.length})
+                </CardTitle>
+                {/* Sort Controls */}
+                <div className="flex items-center gap-2">
+                  <Select value={sortBy} onValueChange={setSortBy}>
+                    <SelectTrigger className="w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="date">Date</SelectItem>
+                      <SelectItem value="amount">Amount</SelectItem>
+                      <SelectItem value="description">Description</SelectItem>
+                      <SelectItem value="category">Category</SelectItem>
+                      <SelectItem value="account">Account</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                    className="px-2"
+                  >
+                    {sortOrder === 'asc' ? '↑' : '↓'}
+                  </Button>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               {isLoading ? (

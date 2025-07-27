@@ -76,12 +76,17 @@ export default function Dashboard() {
     },
   });
 
-  const { data: transactions = [], isLoading: transactionsLoading } = useQuery<TransactionWithDetails[]>({
+  const { data: transactionsData, isLoading: transactionsLoading } = useQuery<{
+    transactions: TransactionWithDetails[];
+    total: number;
+    totalPages: number;
+    currentPage: number;
+  }>({
     queryKey: ["/api/transactions"],
     enabled: isAuthenticated && !authLoading,
     queryFn: async () => {
       const token = await getValidToken();
-      if (!token) return [];
+      if (!token) return { transactions: [], total: 0, totalPages: 0, currentPage: 1 };
       
       try {
         const response = await fetch("/api/transactions", {
@@ -89,16 +94,18 @@ export default function Dashboard() {
           credentials: "include",
         });
         
-        if (response.status === 401) return [];
+        if (response.status === 401) return { transactions: [], total: 0, totalPages: 0, currentPage: 1 };
         if (!response.ok) throw new Error("Failed to fetch transactions");
         
         return response.json();
       } catch (error) {
         console.error("Error fetching transactions:", error);
-        return [];
+        return { transactions: [], total: 0, totalPages: 0, currentPage: 1 };
       }
     },
   });
+
+  const transactions = transactionsData?.transactions || [];
 
   const { data: analytics, isLoading: analyticsLoading } = useQuery<AnalyticsSummary>({
     queryKey: ["/api/analytics/summary"],

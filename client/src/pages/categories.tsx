@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,13 +14,15 @@ import {
 } from "@/components/ui/alert-dialog";
 import { AddCategoryModal } from "@/components/modals/add-category-modal";
 import { EditCategoryModal } from "@/components/modals/edit-category-modal";
+import { SortableGrid } from "@/components/ui/sortable-grid";
 import { apiRequest } from "@/lib/queryClient";
+import { formatCurrency, getTransactionTypeColor } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { getValidToken } from "@/lib/queryClient";
-import { Plus, Edit2, Trash2, Archive } from "lucide-react";
+import { Plus, Edit2, Trash2, Archive, X, Receipt } from "lucide-react";
 import { useLocation } from "wouter";
-import type { Category } from "@shared/schema";
+import type { Category, TransactionWithDetails } from "@shared/schema";
 
 export default function Categories() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
@@ -28,6 +30,8 @@ export default function Categories() {
   const [showEditCategory, setShowEditCategory] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [deleteCategory, setDeleteCategory] = useState<string | null>(null);
+  const [categoryOrder, setCategoryOrder] = useState<string[]>([]);
+  const [viewingCategoryTransactions, setViewingCategoryTransactions] = useState<Category | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
@@ -51,6 +55,31 @@ export default function Categories() {
         return response.json();
       } catch (error) {
         console.error("Error fetching categories with transaction counts:", error);
+        return [];
+      }
+    },
+  });
+
+  const { data: categoryTransactions = [], isLoading: transactionsLoading } = useQuery<TransactionWithDetails[]>({
+    queryKey: ["/api/transactions", viewingCategoryTransactions?._id],
+    enabled: isAuthenticated && !authLoading && !!viewingCategoryTransactions,
+    queryFn: async () => {
+      const token = await getValidToken();
+      if (!token || !viewingCategoryTransactions) return [];
+      
+      try {
+        const response = await fetch(`/api/transactions?categoryId=${viewingCategoryTransactions._id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+          credentials: "include",
+        });
+        
+        if (response.status === 401) return [];
+        if (!response.ok) throw new Error("Failed to fetch category transactions");
+        
+        const data = await response.json();
+        return data.transactions || [];
+      } catch (error) {
+        console.error("Error fetching category transactions:", error);
         return [];
       }
     },
@@ -97,6 +126,52 @@ export default function Categories() {
     setSelectedCategory(category);
     setShowEditCategory(true);
   };
+
+  const handleViewTransactions = (category: Category) => {
+    setViewingCategoryTransactions(category);
+  };
+
+  const handleCloseTransactions = () => {
+    setViewingCategoryTransactions(null);
+  };
+
+  const handleReorder = (newOrder: (Category & { transactionCount: number })[]) => {
+    setCategoryOrder(newOrder.map(category => category._id));
+    localStorage.setItem('categoryOrder', JSON.stringify(newOrder.map(category => category._id)));
+  };
+
+  // Sort categories based on saved order or default order
+  const sortedCategories = React.useMemo(() => {
+    if (categoryOrder.length > 0) {
+      const orderMap = new Map(categoryOrder.map((id, index) => [id, index]));
+      return [...filteredCategories].sort((a, b) => {
+        const aIndex = orderMap.get(a._id) ?? Number.MAX_SAFE_INTEGER;
+        const bIndex = orderMap.get(b._id) ?? Number.MAX_SAFE_INTEGER;
+        return aIndex - bIndex;
+      });
+    }
+    return filteredCategories;
+  }, [filteredCategories, categoryOrder]);
+
+  // Load saved order on mount
+  React.useEffect(() => {
+    const savedOrder = localStorage.getItem('categoryOrder');
+    if (savedOrder) {
+      try {
+        const parsedOrder = JSON.parse(savedOrder);
+        // Validate that the saved order contains valid IDs
+        if (Array.isArray(parsedOrder) && parsedOrder.every(id => typeof id === 'string')) {
+          setCategoryOrder(parsedOrder);
+        } else {
+          console.warn('Invalid category order found in localStorage, clearing it');
+          localStorage.removeItem('categoryOrder');
+        }
+      } catch (error) {
+        console.error('Failed to parse saved category order:', error);
+        localStorage.removeItem('categoryOrder');
+      }
+    }
+  }, []);
 
   return (
     <div className="flex-1 relative overflow-y-auto focus:outline-none">
@@ -169,41 +244,59 @@ export default function Categories() {
                 </Button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredCategories.map((category) => (
-                  <Card key={category._id} className="group relative">
-                    <CardContent className="p-4 flex items-center justify-between">
-                      <div className="flex items-center">
-                        <div
-                          className="w-10 h-10 rounded-lg flex items-center justify-center mr-4"
-                          style={{ backgroundColor: category.color }}
-                        >
-                          <i className={`${category.icon} text-white text-lg`} />
+              <SortableGrid
+                items={sortedCategories}
+                onReorder={handleReorder}
+                className="sm:grid-cols-2 lg:grid-cols-3"
+                getId={(category) => category._id}
+              >
+                {(category) => (
+                  <Card className="group relative">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center">
+                          <div
+                            className="w-10 h-10 rounded-lg flex items-center justify-center mr-4"
+                            style={{ backgroundColor: category.color }}
+                          >
+                            <i className={`${category.icon} text-white text-lg`} />
+                          </div>
+                          <div>
+                            <p className="font-semibold text-foreground">{category.name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {category.transactionCount} Transaction{category.transactionCount !== 1 ? 's' : ''}
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-semibold text-foreground">{category.name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {category.transactionCount} Transaction{category.transactionCount !== 1 ? 's' : ''}
-                          </p>
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                          <Button variant="ghost" size="sm" onClick={() => handleEdit(category)}>
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-500 hover:text-red-600"
+                            onClick={() => setDeleteCategory(category._id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
                       </div>
-                      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => handleEdit(category)}>
-                          <Edit2 className="h-4 w-4" />
-                        </Button>
+                      <div className="pt-3 border-t border-border">
                         <Button
-                          variant="ghost"
+                          variant="outline"
                           size="sm"
-                          className="text-red-500 hover:text-red-600"
-                          onClick={() => setDeleteCategory(category._id)}
+                          onClick={() => handleViewTransactions(category)}
+                          className="w-full"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Receipt className="h-4 w-4 mr-2" />
+                          View Transactions
                         </Button>
                       </div>
                     </CardContent>
                   </Card>
-                ))}
-              </div>
+                )}
+              </SortableGrid>
             )}
           </div>
 
@@ -241,6 +334,92 @@ export default function Categories() {
                       </p>
                     </div>
                   </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Category Transactions View */}
+          {viewingCategoryTransactions && (
+            <div className="mt-8">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2">
+                      <Receipt className="h-5 w-5" />
+                      {viewingCategoryTransactions.name} - Transactions
+                    </CardTitle>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleCloseTransactions}
+                    >
+                      <X className="h-4 w-4 mr-2" />
+                      Close
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {transactionsLoading ? (
+                    <div className="space-y-4">
+                      {[...Array(5)].map((_, i) => (
+                        <div key={i} className="animate-pulse flex items-center justify-between p-4 border-b border-border">
+                          <div className="flex items-center space-x-4">
+                            <div className="w-10 h-10 bg-muted rounded-lg" />
+                            <div className="space-y-2">
+                              <div className="h-4 bg-muted rounded w-32" />
+                              <div className="h-3 bg-muted rounded w-24" />
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <div className="h-4 bg-muted rounded w-20" />
+                            <div className="h-3 bg-muted rounded w-16" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : categoryTransactions.length === 0 ? (
+                    <div className="text-center py-8">
+                      <p className="text-muted-foreground">No transactions found for this category.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-0 divide-y divide-border">
+                      {categoryTransactions.map((transaction) => (
+                        <div key={transaction._id} className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors">
+                          <div className="flex items-center flex-1">
+                            <div className="flex-shrink-0">
+                              <div
+                                className="w-10 h-10 rounded-lg flex items-center justify-center"
+                                style={{ backgroundColor: transaction.category.color, color: 'white' }}
+                              >
+                                <i className={`${transaction.category.icon} text-sm`} />
+                              </div>
+                            </div>
+                            <div className="ml-4 flex-1">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="text-sm font-medium text-foreground">
+                                    {transaction.description}
+                                  </p>
+                                  <p className="text-sm text-muted-foreground">
+                                    {transaction.account.name}
+                                  </p>
+                                </div>
+                                <div className="text-right">
+                                  <p className={`text-sm font-medium ${getTransactionTypeColor(transaction.type)}`}>
+                                    {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
+                                  </p>
+                                  <p className="text-sm text-muted-foreground">
+                                    {new Date(transaction.date).toLocaleDateString()}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
