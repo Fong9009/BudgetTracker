@@ -342,7 +342,12 @@ export function UploadStatementModal({ open, onOpenChange }: UploadStatementModa
     const transaction = parseResult?.transactions[index];
     if (transaction) {
       const newEditing = new Map(editingTransactions);
-      newEditing.set(index, { ...transaction });
+      // Ensure date is a proper Date object for editing
+      const editingTransaction = {
+        ...transaction,
+        date: transaction.date instanceof Date ? transaction.date : new Date(transaction.date)
+      };
+      newEditing.set(index, editingTransaction);
       setEditingTransactions(newEditing);
     }
   }, [parseResult, editingTransactions]);
@@ -526,121 +531,119 @@ export function UploadStatementModal({ open, onOpenChange }: UploadStatementModa
                       selectedTransactions.has(index) ? 'border-primary bg-primary/5' : ''
                     }`}>
                       <CardContent className="p-4">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-3">
-                            <input
-                              type="checkbox"
-                              checked={selectedTransactions.has(index)}
-                              onChange={() => toggleTransactionSelection(index)}
-                              className="h-4 w-4"
-                            />
-                            <div className="flex-1 space-y-2">
-                              {/* Description */}
-                              <div className="flex items-center space-x-2">
-                                {isEditing ? (
-                                  <Input
-                                    value={editedTransaction.description}
-                                    onChange={(e) => updateTransactionField(index, 'description', e.target.value)}
-                                    className="flex-1"
-                                    placeholder="Transaction description"
-                                  />
-                                ) : (
-                                  <span className="font-medium">{transaction.description}</span>
-                                )}
-                                
-                                {/* Type Badge */}
-                                {isEditing ? (
-                                  <Select
-                                    value={editedTransaction.type}
-                                    onValueChange={(value: 'income' | 'expense') => updateTransactionField(index, 'type', value)}
-                                  >
-                                    <SelectTrigger className="w-24">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="income">Income</SelectItem>
-                                      <SelectItem value="expense">Expense</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                ) : (
-                                  <Badge variant={transaction.type === 'income' ? 'default' : 'secondary'}>
-                                    {transaction.type}
-                                  </Badge>
-                                )}
+                        <div className="flex items-start space-x-4">
+                          {/* Checkbox */}
+                          <input
+                            type="checkbox"
+                            checked={selectedTransactions.has(index)}
+                            onChange={() => toggleTransactionSelection(index)}
+                            className="h-4 w-4 mt-1"
+                          />
+                          
+                          {/* Description */}
+                          <div className="flex-1 min-w-0">
+                            {isEditing ? (
+                              <Input
+                                value={editedTransaction.description}
+                                onChange={(e) => updateTransactionField(index, 'description', e.target.value)}
+                                className="w-full"
+                                placeholder="Transaction description"
+                              />
+                            ) : (
+                              <div 
+                                className="font-medium cursor-pointer hover:bg-muted px-2 py-1 rounded transition-colors"
+                                onClick={() => startEditingTransaction(index)}
+                                title="Click to edit"
+                              >
+                                {transaction.description}
                               </div>
+                            )}
+                            
+                            {/* Date and Amount Row */}
+                            <div className="flex items-center space-x-4 mt-2">
+                              {/* Date */}
+                              {isEditing ? (
+                                <Input
+                                  type="date"
+                                  value={(() => {
+                                    const date = editedTransaction.date instanceof Date 
+                                      ? editedTransaction.date 
+                                      : new Date(editedTransaction.date);
+                                    // Format as YYYY-MM-DD in local timezone
+                                    const year = date.getFullYear();
+                                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                                    const day = String(date.getDate()).padStart(2, '0');
+                                    return `${year}-${month}-${day}`;
+                                  })()}
+                                  onChange={(e) => {
+                                    const newDate = new Date(e.target.value);
+                                    updateTransactionField(index, 'date', newDate);
+                                  }}
+                                  className="w-40"
+                                />
+                              ) : (
+                                <div 
+                                  className="text-sm text-muted-foreground cursor-pointer hover:bg-muted px-2 py-1 rounded transition-colors"
+                                  onClick={() => startEditingTransaction(index)}
+                                  title="Click to edit"
+                                >
+                                  {formatDateFull(transaction.date)}
+                                </div>
+                              )}
                               
-                              {/* Date and Amount Row */}
-                              <div className="flex items-center space-x-4">
-                                {/* Date */}
-                                {isEditing ? (
-                                  <Input
-                                    type="date"
-                                    value={editedTransaction.date.toISOString().split('T')[0]}
-                                    onChange={(e) => {
-                                      const newDate = new Date(e.target.value);
-                                      updateTransactionField(index, 'date', newDate);
-                                    }}
-                                    className="w-40"
-                                  />
-                                ) : (
-                                  <div className="text-sm text-muted-foreground">
-                                    {formatDateFull(transaction.date)}
-                                  </div>
-                                )}
-                                
-                                {/* Amount */}
-                                {isEditing ? (
-                                  <Input
-                                    type="number"
-                                    step="0.01"
-                                    value={editedTransaction.amount}
-                                    onChange={(e) => updateTransactionField(index, 'amount', parseFloat(e.target.value) || 0)}
-                                    className="w-32"
-                                    placeholder="0.00"
-                                  />
-                                ) : (
-                                  <span className={`font-semibold ${
+                              {/* Amount */}
+                              {isEditing ? (
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  value={editedTransaction.amount}
+                                  onChange={(e) => updateTransactionField(index, 'amount', parseFloat(e.target.value) || 0)}
+                                  className="w-32"
+                                  placeholder="0.00"
+                                />
+                              ) : (
+                                <span 
+                                  className={`font-semibold cursor-pointer hover:bg-muted px-2 py-1 rounded transition-colors ${
                                     transaction.type === 'income' ? 'text-green-600' : 'text-red-600'
-                                  }`}>
-                                    {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
-                                  </span>
-                                )}
-                              </div>
+                                  }`}
+                                  onClick={() => startEditingTransaction(index)}
+                                  title="Click to edit"
+                                >
+                                  {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
+                                </span>
+                              )}
                             </div>
                           </div>
                           
-                          <div className="flex items-center space-x-2">
-                            {/* Edit/Save/Cancel Buttons */}
+                          {/* Type Badge */}
+                          <div className="flex-shrink-0">
                             {isEditing ? (
-                              <>
-                                <Button
-                                  size="sm"
-                                  onClick={() => saveTransactionEdit(index)}
-                                  className="h-8 px-2"
-                                >
-                                  <CheckCircle className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => cancelTransactionEdit(index)}
-                                  className="h-8 px-2"
-                                >
-                                  <X className="h-4 w-4" />
-                                </Button>
-                              </>
-                            ) : (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => startEditingTransaction(index)}
-                                className="h-8 px-2"
+                              <Select
+                                value={editedTransaction.type}
+                                onValueChange={(value: 'income' | 'expense') => updateTransactionField(index, 'type', value)}
                               >
-                                <Edit className="h-4 w-4" />
-                              </Button>
+                                <SelectTrigger className="w-24">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="income">Income</SelectItem>
+                                  <SelectItem value="expense">Expense</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <Badge 
+                                variant={transaction.type === 'income' ? 'default' : 'secondary'}
+                                className="cursor-pointer hover:opacity-80 transition-opacity"
+                                onClick={() => startEditingTransaction(index)}
+                                title="Click to edit"
+                              >
+                                {transaction.type}
+                              </Badge>
                             )}
-                            
-                            {/* Category Mapping */}
+                          </div>
+                          
+                          {/* Category Mapping */}
+                          <div className="flex-shrink-0">
                             <Select
                               value={categoryMappings.get(transaction.description) || ''}
                               onValueChange={(value) => updateCategoryMapping(transaction.description, value)}
@@ -660,6 +663,27 @@ export function UploadStatementModal({ open, onOpenChange }: UploadStatementModa
                               </SelectContent>
                             </Select>
                           </div>
+                          
+                          {/* Save/Cancel Buttons - only show when editing */}
+                          {isEditing && (
+                            <div className="flex items-center space-x-2 flex-shrink-0">
+                              <Button
+                                size="sm"
+                                onClick={() => saveTransactionEdit(index)}
+                                className="h-8 px-2"
+                              >
+                                <CheckCircle className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => cancelTransactionEdit(index)}
+                                className="h-8 px-2"
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       </CardContent>
                     </Card>

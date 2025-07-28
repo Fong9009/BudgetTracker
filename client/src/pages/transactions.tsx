@@ -30,6 +30,7 @@ import { AddTransactionModal } from "@/components/modals/add-transaction-modal";
 import { TransferModal } from "@/components/modals/transfer-modal";
 import { ExportModal } from "@/components/export/export-modal";
 import { UploadStatementModal } from "@/components/modals/upload-statement-modal";
+import { EditTransactionModal } from "@/components/modals/edit-transaction-modal";
 import { formatCurrency, formatDateFull, getTransactionTypeColor, debounce, cn, groupTransferTransactions, type TransactionOrTransfer } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -973,7 +974,14 @@ export default function Transactions() {
                         </div>
                         <div className="ml-4 flex space-x-2">
                           {item.type !== 'transfer' && (
-                            <Button variant="ghost" size="sm">
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => {
+                                setSelectedTransaction(item);
+                                setShowEditTransaction(true);
+                              }}
+                            >
                               <Edit2 className="h-4 w-4" />
                             </Button>
                           )}
@@ -1022,6 +1030,13 @@ export default function Transactions() {
       <UploadStatementModal
         open={showUploadStatement}
         onOpenChange={setShowUploadStatement}
+      />
+
+      {/* Edit Transaction Modal */}
+      <EditTransactionModal
+        open={showEditTransaction}
+        onOpenChange={setShowEditTransaction}
+        transaction={selectedTransaction}
       />
 
       {/* Delete Confirmation Dialog */}
