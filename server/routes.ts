@@ -675,7 +675,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } = req.query;
 
       // Parse pagination with validation
-      console.log("Query params:", { page, limit, pageType: typeof page, limitType: typeof limit });
+  
       const paginationData = paginationSchema.parse({ page, limit });
 
       // Parse filters
@@ -1050,14 +1050,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         let result;
         
+        // Get reverse logic preference
+        const reverseLogic = req.body.reverseLogic === 'true';
+        
         // Parse based on file type
         if (file.mimetype === 'text/csv' || file.mimetype === 'application/csv' || file.originalname.toLowerCase().endsWith('.csv')) {
           // Parse CSV file
-          result = await CSVParser.parseCSVStatement(file.buffer);
+          result = await CSVParser.parseCSVStatement(file.buffer, reverseLogic);
         } else if (file.mimetype.includes('excel') || file.mimetype.includes('spreadsheet') || 
                    file.originalname.toLowerCase().endsWith('.xlsx') || file.originalname.toLowerCase().endsWith('.xls')) {
           // Parse Excel file
-          result = await ExcelParser.parseExcelStatement(file.buffer);
+          result = await ExcelParser.parseExcelStatement(file.buffer, reverseLogic);
         } else {
           return res.status(400).json({ error: 'Unsupported file type. Please upload CSV or Excel files.' });
         }

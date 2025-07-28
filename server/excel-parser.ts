@@ -2,7 +2,13 @@ import * as XLSX from 'xlsx';
 import { ParsedTransaction, StatementParseResult } from './types';
 
 export class ExcelParser {
-  static async parseExcelStatement(excelBuffer: Buffer): Promise<StatementParseResult> {
+  private static headerLine: string = '';
+
+  private static getHeaderLine(): string {
+    return this.headerLine;
+  }
+
+  static async parseExcelStatement(excelBuffer: Buffer, reverseLogic: boolean = false): Promise<StatementParseResult> {
     const result: StatementParseResult = {
       transactions: [],
       errors: [],
@@ -36,11 +42,14 @@ export class ExcelParser {
       const csvText = this.convertToCSV(jsonData);
       const lines = csvText.split('\n').map(line => line.trim()).filter(line => line.length > 0);
 
+      // Store the header line for reference
+      this.headerLine = lines[0];
+
       // Use the same parsing logic as CSV
       const format = this.detectFormat(lines);
-      console.log('Detected Excel format:', format);
+  
 
-      const transactions = this.parseTransactionsByFormat(lines, format);
+      const transactions = this.parseTransactionsByFormat(lines, format, reverseLogic);
       result.transactions = this.deduplicateAndSortTransactions(transactions);
       
       // Extract account information if available
@@ -99,8 +108,21 @@ export class ExcelParser {
     ).join('\n');
   }
 
-  private static detectFormat(lines: string[]): 'standard' | 'bank' | 'custom' {
+  private static detectFormat(lines: string[]): 'standard' | 'bank' | 'custom' | 'separate_columns' {
     const header = lines[0].toLowerCase();
+    
+    // Check for separate Money In/Money Out columns
+    if (header.includes('money in') && header.includes('money out')) {
+      return 'separate_columns';
+    }
+    
+    if (header.includes('credit') && header.includes('debit')) {
+      return 'separate_columns';
+    }
+    
+    if (header.includes('deposit') && header.includes('withdrawal')) {
+      return 'separate_columns';
+    }
     
     // Common bank Excel formats
     if (header.includes('date') && header.includes('description') && header.includes('amount')) {
@@ -119,13 +141,13 @@ export class ExcelParser {
     return 'custom';
   }
 
-  private static parseTransactionsByFormat(lines: string[], format: string): ParsedTransaction[] {
+  private static parseTransactionsByFormat(lines: string[], format: string, reverseLogic: boolean): ParsedTransaction[] {
     const transactions: ParsedTransaction[] = [];
     
     // Skip header row
     for (let i = 1; i < lines.length; i++) {
       const line = lines[i];
-      const transaction = this.parseLine(line, format);
+      const transaction = this.parseLine(line, format, reverseLogic);
       if (transaction) {
         transactions.push(transaction);
       }
@@ -134,7 +156,7 @@ export class ExcelParser {
     return transactions;
   }
 
-  private static parseLine(line: string, format: string): ParsedTransaction | null {
+  private static parseLine(line: string, format: string, reverseLogic: boolean): ParsedTransaction | null {
     try {
       // Parse CSV line (handle quoted fields)
       const fields = this.parseCSVFields(line);
@@ -148,18 +170,66 @@ export class ExcelParser {
       let amount: number = 0;
       let type: 'income' | 'expense' = 'expense';
 
-      if (format === 'standard' || format === 'bank') {
+      if (format === 'separate_columns') {
+        // Format with separate Money In/Money Out columns
+        date = this.parseDate(fields[0]);
+        description = fields[1] || '';
+        
+        // Look for Money In and Money Out columns
+        const header = this.getHeaderLine();
+        const headerFields = this.parseCSVFields(header);
+        
+        let moneyInIndex = -1;
+        let moneyOutIndex = -1;
+        
+        for (let i = 0; i < headerFields.length; i++) {
+          const headerField = headerFields[i].toLowerCase();
+          if (headerField.includes('money in') || headerField.includes('credit') || headerField.includes('deposit')) {
+            moneyInIndex = i;
+          }
+          if (headerField.includes('money out') || headerField.includes('debit') || headerField.includes('withdrawal')) {
+            moneyOutIndex = i;
+          }
+        }
+        
+        // Parse amounts from separate columns
+        const moneyIn = moneyInIndex >= 0 ? this.parseAmount(fields[moneyInIndex] || '0') : 0;
+        const moneyOut = moneyOutIndex >= 0 ? this.parseAmount(fields[moneyOutIndex] || '0') : 0;
+        
+        if (moneyIn > 0) {
+          amount = moneyIn;
+          type = 'income';
+        } else if (moneyOut > 0) {
+          amount = moneyOut;
+          type = 'expense';
+        } else {
+          return null; // No transaction
+        }
+        
+      } else if (format === 'standard' || format === 'bank') {
         // Standard format: Date, Description, Amount
         date = this.parseDate(fields[0]);
         description = fields[1] || fields[2] || '';
         amount = this.parseAmount(fields[2] || fields[3] || '0');
         
-        // Determine type based on amount sign
-        if (amount > 0) {
-          type = 'income';
+        // For most bank statements: negative = expense, positive = income
+        // But some banks do the opposite, so we'll use reverseLogic parameter
+        if (reverseLogic) {
+          // Reversed logic: positive = expense, negative = income
+          if (amount > 0) {
+            type = 'expense';
+          } else {
+            type = 'income';
+            amount = Math.abs(amount);
+          }
         } else {
-          type = 'expense';
-          amount = Math.abs(amount);
+          // Standard logic: positive = income, negative = expense
+          if (amount > 0) {
+            type = 'income';
+          } else {
+            type = 'expense';
+            amount = Math.abs(amount);
+          }
         }
       } else {
         // Custom format - try to detect fields
@@ -177,11 +247,22 @@ export class ExcelParser {
             const parsedAmount = this.parseAmount(field);
             if (parsedAmount !== 0) {
               amount = parsedAmount;
-              if (amount > 0) {
-                type = 'income';
+              if (reverseLogic) {
+                // Reversed logic: positive = expense, negative = income
+                if (amount > 0) {
+                  type = 'expense';
+                } else {
+                  type = 'income';
+                  amount = Math.abs(amount);
+                }
               } else {
-                type = 'expense';
-                amount = Math.abs(amount);
+                // Standard logic: positive = income, negative = expense
+                if (amount > 0) {
+                  type = 'income';
+                } else {
+                  type = 'expense';
+                  amount = Math.abs(amount);
+                }
               }
               continue;
             }

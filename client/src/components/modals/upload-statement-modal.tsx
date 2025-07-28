@@ -78,6 +78,7 @@ export function UploadStatementModal({ open, onOpenChange }: UploadStatementModa
   const [selectedTransactions, setSelectedTransactions] = useState<Set<number>>(new Set());
   const [categoryMappings, setCategoryMappings] = useState<Map<string, string>>(new Map());
   const [editingTransactions, setEditingTransactions] = useState<Map<number, ParsedTransaction>>(new Map());
+  const [reverseAmountLogic, setReverseAmountLogic] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -118,9 +119,10 @@ export function UploadStatementModal({ open, onOpenChange }: UploadStatementModa
 
   // Parse statement mutation
   const parseStatementMutation = useMutation({
-    mutationFn: async (file: File) => {
+    mutationFn: async ({ file, reverseLogic }: { file: File; reverseLogic: boolean }) => {
       const formData = new FormData();
       formData.append('statement', file);
+      formData.append('reverseLogic', reverseLogic.toString());
       
       const token = await getValidToken();
       if (!token) throw new Error("No valid token");
@@ -303,10 +305,10 @@ export function UploadStatementModal({ open, onOpenChange }: UploadStatementModa
     if (!file) return;
     
     setIsProcessing(true);
-    parseStatementMutation.mutate(file, {
+    parseStatementMutation.mutate({ file, reverseLogic: reverseAmountLogic }, {
       onSettled: () => setIsProcessing(false),
     });
-  }, [file, parseStatementMutation]);
+  }, [file, reverseAmountLogic, parseStatementMutation]);
 
   const handleImportTransactions = useCallback(() => {
     if (!selectedAccount || selectedTransactions.size === 0) {
@@ -450,6 +452,35 @@ export function UploadStatementModal({ open, onOpenChange }: UploadStatementModa
                 </div>
               </div>
             </div>
+            
+            {/* Bank Format Toggle */}
+            {file && (
+              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                <div className="space-y-1">
+                  <Label className="text-sm font-medium">Bank Statement Format</Label>
+                  <p className="text-xs text-gray-500">
+                    Toggle if transactions are incorrectly categorized
+                  </p>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span className="text-xs text-gray-600">Standard</span>
+                  <button
+                    type="button"
+                    onClick={() => setReverseAmountLogic(!reverseAmountLogic)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
+                      reverseAmountLogic ? 'bg-primary' : 'bg-gray-200'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        reverseAmountLogic ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                  <span className="text-xs text-gray-600">Reversed</span>
+                </div>
+              </div>
+            )}
             
             {/* Parse Button */}
             {file && (
