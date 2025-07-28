@@ -23,7 +23,7 @@ import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, FileText, CheckCircle, AlertCircle, Loader2, X } from "lucide-react";
+import { Upload, FileText, CheckCircle, AlertCircle, Loader2, X, Edit } from "lucide-react";
 import { formatCurrency, formatDateFull } from "@/lib/utils";
 import { apiRequest, getValidToken } from "@/lib/queryClient";
 import type { Account, Category } from "@shared/schema";
@@ -77,6 +77,7 @@ export function UploadStatementModal({ open, onOpenChange }: UploadStatementModa
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedTransactions, setSelectedTransactions] = useState<Set<number>>(new Set());
   const [categoryMappings, setCategoryMappings] = useState<Map<string, string>>(new Map());
+  const [editingTransactions, setEditingTransactions] = useState<Map<number, ParsedTransaction>>(new Map());
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -211,10 +212,18 @@ export function UploadStatementModal({ open, onOpenChange }: UploadStatementModa
       
       const selectedTransactionsList = parseResult.transactions.filter((_: ParsedTransaction, index: number) => 
         selectedTransactions.has(index)
-      );
+      ).map((transaction, originalIndex) => {
+        // Use edited transaction if available, otherwise use original
+        const actualIndex = parseResult.transactions.indexOf(transaction);
+        const editedTransaction = editingTransactions.get(actualIndex);
+        return editedTransaction || transaction;
+      });
       
       const token = await getValidToken();
       if (!token) throw new Error("No valid token");
+      
+      // Get CSRF token for import request
+      const csrfToken = await getCSRFToken();
       
       // Use apiRequest for proper error handling and token refresh
       return await apiRequest('POST', '/api/statements/import', {
@@ -227,6 +236,7 @@ export function UploadStatementModal({ open, onOpenChange }: UploadStatementModa
         headers: { 
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
+          ...(csrfToken && { "X-CSRF-Token": csrfToken }),
         },
         credentials: "include",
       });
@@ -243,6 +253,7 @@ export function UploadStatementModal({ open, onOpenChange }: UploadStatementModa
       setSelectedTransactions(new Set());
       setCategoryMappings(new Map());
       setSelectedAccount("");
+      setEditingTransactions(new Map());
       
       // Refresh transactions list
       queryClient.invalidateQueries({ queryKey: ["/api/transactions"] });
@@ -325,6 +336,44 @@ export function UploadStatementModal({ open, onOpenChange }: UploadStatementModa
     newMappings.set(description, categoryId);
     setCategoryMappings(newMappings);
   }, [categoryMappings]);
+
+  // Transaction editing functions
+  const startEditingTransaction = useCallback((index: number) => {
+    const transaction = parseResult?.transactions[index];
+    if (transaction) {
+      const newEditing = new Map(editingTransactions);
+      newEditing.set(index, { ...transaction });
+      setEditingTransactions(newEditing);
+    }
+  }, [parseResult, editingTransactions]);
+
+  const saveTransactionEdit = useCallback((index: number) => {
+    const editedTransaction = editingTransactions.get(index);
+    if (editedTransaction && parseResult) {
+      const newTransactions = [...parseResult.transactions];
+      newTransactions[index] = editedTransaction;
+      setParseResult({ ...parseResult, transactions: newTransactions });
+      
+      const newEditing = new Map(editingTransactions);
+      newEditing.delete(index);
+      setEditingTransactions(newEditing);
+    }
+  }, [editingTransactions, parseResult]);
+
+  const cancelTransactionEdit = useCallback((index: number) => {
+    const newEditing = new Map(editingTransactions);
+    newEditing.delete(index);
+    setEditingTransactions(newEditing);
+  }, [editingTransactions]);
+
+  const updateTransactionField = useCallback((index: number, field: keyof ParsedTransaction, value: any) => {
+    const editedTransaction = editingTransactions.get(index);
+    if (editedTransaction) {
+      const newEditing = new Map(editingTransactions);
+      newEditing.set(index, { ...editedTransaction, [field]: value });
+      setEditingTransactions(newEditing);
+    }
+  }, [editingTransactions]);
 
   const findBestCategoryMatch = (description: string, categories: Category[]): Category | null => {
     const upperDesc = description.toUpperCase();
@@ -468,63 +517,154 @@ export function UploadStatementModal({ open, onOpenChange }: UploadStatementModa
 
               {/* Transactions List */}
               <div className="space-y-2 max-h-96 overflow-y-auto">
-                {parseResult.transactions.map((transaction, index) => (
-                  <Card key={index} className={`cursor-pointer transition-colors ${
-                    selectedTransactions.has(index) ? 'border-primary bg-primary/5' : ''
-                  }`}>
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <input
-                            type="checkbox"
-                            checked={selectedTransactions.has(index)}
-                            onChange={() => toggleTransactionSelection(index)}
-                            className="h-4 w-4"
-                          />
-                          <div className="flex-1">
-                            <div className="flex items-center space-x-2">
-                              <span className="font-medium">{transaction.description}</span>
-                              <Badge variant={transaction.type === 'income' ? 'default' : 'secondary'}>
-                                {transaction.type}
-                              </Badge>
-                            </div>
-                            <div className="text-sm text-muted-foreground">
-                              {formatDateFull(transaction.date)}
+                {parseResult.transactions.map((transaction, index) => {
+                  const isEditing = editingTransactions.has(index);
+                  const editedTransaction = editingTransactions.get(index) || transaction;
+                  
+                  return (
+                    <Card key={index} className={`transition-colors ${
+                      selectedTransactions.has(index) ? 'border-primary bg-primary/5' : ''
+                    }`}>
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-3">
+                            <input
+                              type="checkbox"
+                              checked={selectedTransactions.has(index)}
+                              onChange={() => toggleTransactionSelection(index)}
+                              className="h-4 w-4"
+                            />
+                            <div className="flex-1 space-y-2">
+                              {/* Description */}
+                              <div className="flex items-center space-x-2">
+                                {isEditing ? (
+                                  <Input
+                                    value={editedTransaction.description}
+                                    onChange={(e) => updateTransactionField(index, 'description', e.target.value)}
+                                    className="flex-1"
+                                    placeholder="Transaction description"
+                                  />
+                                ) : (
+                                  <span className="font-medium">{transaction.description}</span>
+                                )}
+                                
+                                {/* Type Badge */}
+                                {isEditing ? (
+                                  <Select
+                                    value={editedTransaction.type}
+                                    onValueChange={(value: 'income' | 'expense') => updateTransactionField(index, 'type', value)}
+                                  >
+                                    <SelectTrigger className="w-24">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="income">Income</SelectItem>
+                                      <SelectItem value="expense">Expense</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                ) : (
+                                  <Badge variant={transaction.type === 'income' ? 'default' : 'secondary'}>
+                                    {transaction.type}
+                                  </Badge>
+                                )}
+                              </div>
+                              
+                              {/* Date and Amount Row */}
+                              <div className="flex items-center space-x-4">
+                                {/* Date */}
+                                {isEditing ? (
+                                  <Input
+                                    type="date"
+                                    value={editedTransaction.date.toISOString().split('T')[0]}
+                                    onChange={(e) => {
+                                      const newDate = new Date(e.target.value);
+                                      updateTransactionField(index, 'date', newDate);
+                                    }}
+                                    className="w-40"
+                                  />
+                                ) : (
+                                  <div className="text-sm text-muted-foreground">
+                                    {formatDateFull(transaction.date)}
+                                  </div>
+                                )}
+                                
+                                {/* Amount */}
+                                {isEditing ? (
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    value={editedTransaction.amount}
+                                    onChange={(e) => updateTransactionField(index, 'amount', parseFloat(e.target.value) || 0)}
+                                    className="w-32"
+                                    placeholder="0.00"
+                                  />
+                                ) : (
+                                  <span className={`font-semibold ${
+                                    transaction.type === 'income' ? 'text-green-600' : 'text-red-600'
+                                  }`}>
+                                    {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                        
-                        <div className="flex items-center space-x-4">
-                          <span className={`font-semibold ${
-                            transaction.type === 'income' ? 'text-green-600' : 'text-red-600'
-                          }`}>
-                            {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
-                          </span>
                           
-                          {/* Category Mapping */}
-                          <Select
-                            value={categoryMappings.get(transaction.description) || ''}
-                            onValueChange={(value) => updateCategoryMapping(transaction.description, value)}
-                          >
-                            <SelectTrigger className="w-40">
-                              <SelectValue placeholder="Category" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {categories.map((category) => (
-                                <SelectItem key={category._id} value={category._id}>
-                                  <div className="flex items-center space-x-2">
-                                    <span className="w-3 h-3 rounded-full" style={{ backgroundColor: category.color }} />
-                                    <span>{category.name}</span>
-                                  </div>
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <div className="flex items-center space-x-2">
+                            {/* Edit/Save/Cancel Buttons */}
+                            {isEditing ? (
+                              <>
+                                <Button
+                                  size="sm"
+                                  onClick={() => saveTransactionEdit(index)}
+                                  className="h-8 px-2"
+                                >
+                                  <CheckCircle className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => cancelTransactionEdit(index)}
+                                  className="h-8 px-2"
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => startEditingTransaction(index)}
+                                className="h-8 px-2"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                            )}
+                            
+                            {/* Category Mapping */}
+                            <Select
+                              value={categoryMappings.get(transaction.description) || ''}
+                              onValueChange={(value) => updateCategoryMapping(transaction.description, value)}
+                            >
+                              <SelectTrigger className="w-40">
+                                <SelectValue placeholder="Category" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {categories.map((category) => (
+                                  <SelectItem key={category._id} value={category._id}>
+                                    <div className="flex items-center space-x-2">
+                                      <span className="w-3 h-3 rounded-full" style={{ backgroundColor: category.color }} />
+                                      <span>{category.name}</span>
+                                    </div>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
 
               {/* Errors */}
