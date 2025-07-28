@@ -24,7 +24,8 @@ import { z } from "zod";
 import { sendEmail } from "./mail";
 import crypto from "crypto";
 import { EncryptionService } from "./encryption";
-import { StatementParser } from './statement-parser';
+import { CSVParser } from './csv-parser';
+import { ExcelParser } from './excel-parser';
 import multer from 'multer';
 
 // Enhanced security configuration for file uploads
@@ -36,16 +37,24 @@ const upload = multer({
     fieldSize: 1024 * 1024, // 1MB field size limit
   },
   fileFilter: (req: any, file: any, cb: any) => {
-    // Strict file type validation
-    if (file.mimetype !== 'application/pdf') {
-      return cb(new Error('Only PDF files are allowed'), false);
+    // Support CSV and Excel files
+    const allowedMimeTypes = [
+      'text/csv', 
+      'application/csv',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+      'application/vnd.ms-excel' // .xls
+    ];
+    const allowedExtensions = ['.csv', '.xlsx', '.xls'];
+    
+    // Check MIME type
+    if (!allowedMimeTypes.includes(file.mimetype)) {
+      return cb(new Error('Only CSV and Excel files are allowed'), false);
     }
     
     // Check file extension
-    const allowedExtensions = ['.pdf'];
     const fileExtension = file.originalname.toLowerCase().substring(file.originalname.lastIndexOf('.'));
     if (!allowedExtensions.includes(fileExtension)) {
-      return cb(new Error('Invalid file extension'), false);
+      return cb(new Error('Invalid file extension. Please use .csv or .xlsx files'), false);
     }
     
     // Check for suspicious file names
@@ -1035,36 +1044,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!file.buffer || file.buffer.length === 0) {
           return res.status(400).json({ error: 'Invalid file content' });
         }
-        
-        // Check for PDF magic bytes
-        const pdfMagicBytes = [0x25, 0x50, 0x44, 0x46]; // %PDF
-        const fileHeader = Array.from(file.buffer.slice(0, 4));
-        if (!pdfMagicBytes.every((byte, index) => fileHeader[index] === byte)) {
-          return res.status(400).json({ error: 'Invalid PDF file format' });
-        }
-        
-        // Check for embedded objects or scripts (basic check)
-        const fileContent = file.buffer.toString('utf8', 0, Math.min(1000, file.buffer.length));
-        const suspiciousPatterns = [
-          /\/JavaScript\s*\//i,
-          /\/JS\s*\//i,
-          /\/Launch\s*\//i,
-          /\/SubmitForm\s*\//i,
-          /\/RichMedia\s*\//i,
-          /\/EmbeddedFile\s*\//i,
-        ];
-        
-        for (const pattern of suspiciousPatterns) {
-          if (pattern.test(fileContent)) {
-            console.warn(`Suspicious PDF content detected for user ${req.user._id}: ${pattern.source}`);
-            return res.status(400).json({ error: 'File contains potentially harmful content' });
-          }
-        }
 
         // Log upload attempt for security monitoring
-        console.log(`[SECURITY] File upload attempt - User: ${req.user._id}, File: ${file.originalname}, Size: ${file.size} bytes`);
+        console.log(`[SECURITY] File upload attempt - User: ${req.user._id}, File: ${file.originalname}, Size: ${file.size} bytes, Type: ${file.mimetype}`);
         
-        const result = await StatementParser.parsePDFStatement(file.buffer);
+        let result;
+        
+        // Parse based on file type
+        if (file.mimetype === 'text/csv' || file.mimetype === 'application/csv' || file.originalname.toLowerCase().endsWith('.csv')) {
+          // Parse CSV file
+          result = await CSVParser.parseCSVStatement(file.buffer);
+        } else if (file.mimetype.includes('excel') || file.mimetype.includes('spreadsheet') || 
+                   file.originalname.toLowerCase().endsWith('.xlsx') || file.originalname.toLowerCase().endsWith('.xls')) {
+          // Parse Excel file
+          result = await ExcelParser.parseExcelStatement(file.buffer);
+        } else {
+          return res.status(400).json({ error: 'Unsupported file type. Please upload CSV or Excel files.' });
+        }
+        
         res.json(result);
       } catch (error) {
         console.error('Statement parsing error:', error);

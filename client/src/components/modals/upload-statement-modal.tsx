@@ -347,17 +347,17 @@ export function UploadStatementModal({ open, onOpenChange }: UploadStatementModa
         <div className="space-y-6">
           {/* File Upload Section */}
           <div className="space-y-4">
-            <Label htmlFor="statement-file">Select PDF Statement</Label>
+            <Label htmlFor="statement-file">Select Statement File</Label>
             
             {/* Clickable Upload Area */}
             <div className="relative">
-              <input
-                id="statement-file"
-                type="file"
-                accept=".pdf"
-                onChange={handleFileChange}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-              />
+                          <input
+              id="statement-file"
+              type="file"
+              accept=".csv,.xlsx,.xls"
+              onChange={handleFileChange}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+            />
               <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-primary hover:bg-primary/5 transition-all duration-200 cursor-pointer group">
                 <div className="flex flex-col items-center space-y-4">
                   <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center group-hover:bg-primary/20 transition-colors">
@@ -365,19 +365,19 @@ export function UploadStatementModal({ open, onOpenChange }: UploadStatementModa
                   </div>
                   <div className="space-y-2">
                     <p className="text-lg font-medium text-gray-900">
-                      {file ? file.name : "Click to upload PDF statement"}
+                      {file ? file.name : "Click to upload statement"}
                     </p>
                     <p className="text-sm text-gray-500">
                       {file 
                         ? `File size: ${(file.size / 1024 / 1024).toFixed(2)} MB`
-                        : "Drag and drop your bank statement PDF here, or click to browse"
+                        : "Drag and drop your bank statement CSV or Excel file here, or click to browse"
                       }
                     </p>
                   </div>
                   {!file && (
                     <div className="flex items-center space-x-2 text-xs text-gray-400">
                       <FileText className="h-4 w-4" />
-                      <span>Supports PDF files only</span>
+                      <span>Supports CSV and Excel files</span>
                     </div>
                   )}
                 </div>
