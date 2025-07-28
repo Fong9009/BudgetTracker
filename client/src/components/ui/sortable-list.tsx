@@ -4,6 +4,7 @@ import {
   closestCenter,
   KeyboardSensor,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   DragEndEvent,
@@ -47,14 +48,16 @@ export function SortableListItem({ id, children, className = '' }: SortableListI
       ref={setNodeRef}
       style={style}
       className={`group relative ${className}`}
+      data-draggable="true"
     >
+      {/* Mobile drag handle - always visible on mobile */}
       <div
         {...attributes}
         {...listeners}
-        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing z-10 p-1 rounded bg-background/80 hover:bg-background"
+        className="absolute top-2 right-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing z-10 p-2 rounded bg-background/80 hover:bg-background drag-handle-mobile border border-border/50"
         title="Drag to reorder"
       >
-        <GripVertical className="h-4 w-4 text-muted-foreground" />
+        <GripVertical className="h-5 w-5 text-muted-foreground" />
       </div>
       {children}
     </div>
@@ -71,7 +74,18 @@ interface SortableListProps<T> {
 
 export function SortableList<T>({ items, onReorder, children, className = '', getId }: SortableListProps<T>) {
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 250,
+        tolerance: 5,
+      },
+    }),
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // Minimum distance to start dragging
+        tolerance: 5, // Tolerance for accidental touches
+      },
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
