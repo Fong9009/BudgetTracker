@@ -25,9 +25,27 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, FileText, CheckCircle, AlertCircle, Loader2, X } from "lucide-react";
 import { formatCurrency, formatDateFull } from "@/lib/utils";
-import { apiRequest } from "@/lib/queryClient";
-import { getValidToken } from "@/lib/queryClient";
+import { apiRequest, getValidToken } from "@/lib/queryClient";
 import type { Account, Category } from "@shared/schema";
+
+// Import getCSRFToken function
+async function getCSRFToken(): Promise<string | null> {
+  try {
+    const response = await fetch("/api/csrf-token", {
+      method: "GET",
+      credentials: "include",
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      return data.csrfToken;
+    }
+  } catch (error) {
+    console.warn("Failed to get CSRF token:", error);
+  }
+  
+  return null;
+}
 
 interface ParsedTransaction {
   date: Date;
@@ -106,28 +124,65 @@ export function UploadStatementModal({ open, onOpenChange }: UploadStatementModa
       const token = await getValidToken();
       if (!token) throw new Error("No valid token");
       
+      // Get CSRF token for file upload
+      const csrfToken = await getCSRFToken();
+      
+      // For file uploads, we need to handle FormData differently
       const response = await fetch("/api/statements/parse", {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          ...(csrfToken && { "X-CSRF-Token": csrfToken }),
+          // Don't set Content-Type for FormData, let browser set it with boundary
+        },
+        credentials: "include",
         body: formData,
       });
       
       if (!response.ok) {
+        // If CSRF error, try to get a new token and retry once
+        if (response.status === 403) {
+          try {
+            const errorJson = await response.clone().json();
+            if (errorJson?.message?.toLowerCase().includes('csrf') || errorJson?.error?.toLowerCase().includes('csrf')) {
+              const newCSRFToken = await getCSRFToken();
+              const retryResponse = await fetch("/api/statements/parse", {
+                method: "POST",
+                headers: { 
+                  Authorization: `Bearer ${token}`,
+                  ...(newCSRFToken && { "X-CSRF-Token": newCSRFToken }),
+                },
+                credentials: "include",
+                body: formData,
+              });
+              
+              if (!retryResponse.ok) {
+                const error = await retryResponse.text();
+                throw new Error(error);
+              }
+              
+              return retryResponse.json();
+            }
+          } catch (e) {
+            // Fall through to throw original error
+          }
+        }
+        
         const error = await response.text();
         throw new Error(error);
       }
       
-      return response.json() as Promise<StatementParseResult>;
+      return response.json();
     },
     onSuccess: (result) => {
       setParseResult(result);
       // Auto-select all transactions
-      const allIndices = new Set(result.transactions.map((_, index) => index));
+      const allIndices = new Set<number>(result.transactions.map((_: ParsedTransaction, index: number) => index));
       setSelectedTransactions(allIndices);
       
       // Auto-map categories based on description keywords
       const mappings = new Map<string, string>();
-      result.transactions.forEach(transaction => {
+      result.transactions.forEach((transaction: ParsedTransaction) => {
         const category = findBestCategoryMatch(transaction.description, categories);
         if (category) {
           mappings.set(transaction.description, category._id);
@@ -154,34 +209,27 @@ export function UploadStatementModal({ open, onOpenChange }: UploadStatementModa
     mutationFn: async () => {
       if (!parseResult || !selectedAccount) throw new Error("Missing required data");
       
-      const selectedTransactionsList = parseResult.transactions.filter((_, index) => 
+      const selectedTransactionsList = parseResult.transactions.filter((_: ParsedTransaction, index: number) => 
         selectedTransactions.has(index)
       );
       
       const token = await getValidToken();
       if (!token) throw new Error("No valid token");
       
-      const response = await fetch("/api/statements/import", {
-        method: "POST",
+      // Use apiRequest for proper error handling and token refresh
+      return await apiRequest('POST', '/api/statements/import', {
+        accountId: selectedAccount,
+        transactions: selectedTransactionsList.map((tx: ParsedTransaction) => ({
+          ...tx,
+          categoryId: categoryMappings.get(tx.description) || categories[0]?._id,
+        })),
+      }, {
         headers: { 
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          accountId: selectedAccount,
-          transactions: selectedTransactionsList.map(tx => ({
-            ...tx,
-            categoryId: categoryMappings.get(tx.description) || categories[0]?._id,
-          })),
-        }),
+        credentials: "include",
       });
-      
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(error);
-      }
-      
-      return response.json();
     },
     onSuccess: (result) => {
       toast({
@@ -300,35 +348,62 @@ export function UploadStatementModal({ open, onOpenChange }: UploadStatementModa
           {/* File Upload Section */}
           <div className="space-y-4">
             <Label htmlFor="statement-file">Select PDF Statement</Label>
-            <div className="flex items-center space-x-4">
-              <Input
+            
+            {/* Clickable Upload Area */}
+            <div className="relative">
+              <input
                 id="statement-file"
                 type="file"
                 accept=".pdf"
                 onChange={handleFileChange}
-                className="flex-1"
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
               />
-              {file && (
-                <Button
-                  onClick={handleParseStatement}
-                  disabled={isProcessing}
-                  className="flex items-center space-x-2"
-                >
-                  {isProcessing ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <FileText className="h-4 w-4" />
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-primary hover:bg-primary/5 transition-all duration-200 cursor-pointer group">
+                <div className="flex flex-col items-center space-y-4">
+                  <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                    <Upload className="h-8 w-8 text-primary" />
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-lg font-medium text-gray-900">
+                      {file ? file.name : "Click to upload PDF statement"}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      {file 
+                        ? `File size: ${(file.size / 1024 / 1024).toFixed(2)} MB`
+                        : "Drag and drop your bank statement PDF here, or click to browse"
+                      }
+                    </p>
+                  </div>
+                  {!file && (
+                    <div className="flex items-center space-x-2 text-xs text-gray-400">
+                      <FileText className="h-4 w-4" />
+                      <span>Supports PDF files only</span>
+                    </div>
                   )}
-                  <span>{isProcessing ? "Processing..." : "Parse Statement"}</span>
-                </Button>
-              )}
+                </div>
+              </div>
             </div>
             
+            {/* Parse Button */}
             {file && (
-              <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                <Upload className="h-4 w-4" />
-                <span>{file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)</span>
-              </div>
+              <Button
+                onClick={handleParseStatement}
+                disabled={isProcessing}
+                className="w-full flex items-center justify-center space-x-2 h-12 text-base font-medium"
+                size="lg"
+              >
+                {isProcessing ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    <span>Processing Statement...</span>
+                  </>
+                ) : (
+                  <>
+                    <FileText className="h-5 w-5" />
+                    <span>Parse Statement</span>
+                  </>
+                )}
+              </Button>
             )}
           </div>
 

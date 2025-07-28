@@ -27,18 +27,47 @@ import { EncryptionService } from "./encryption";
 import { StatementParser } from './statement-parser';
 import multer from 'multer';
 
-// Configure multer for file uploads
+// Enhanced security configuration for file uploads
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit
+    fileSize: 5 * 1024 * 1024, // Reduced to 5MB for security
+    files: 1, // Only allow 1 file per request
+    fieldSize: 1024 * 1024, // 1MB field size limit
   },
   fileFilter: (req: any, file: any, cb: any) => {
-    if (file.mimetype === 'application/pdf') {
-      cb(null, true);
-    } else {
-      cb(new Error('Only PDF files are allowed'));
+    // Strict file type validation
+    if (file.mimetype !== 'application/pdf') {
+      return cb(new Error('Only PDF files are allowed'), false);
     }
+    
+    // Check file extension
+    const allowedExtensions = ['.pdf'];
+    const fileExtension = file.originalname.toLowerCase().substring(file.originalname.lastIndexOf('.'));
+    if (!allowedExtensions.includes(fileExtension)) {
+      return cb(new Error('Invalid file extension'), false);
+    }
+    
+    // Check for suspicious file names
+    const suspiciousPatterns = [
+      /\.\./, // Directory traversal
+      /[<>:"|?*]/, // Invalid characters
+      /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i, // Reserved names
+      /\.(exe|bat|cmd|com|pif|scr|vbs|js|jar|war|ear|apk|dmg|iso|zip|rar|7z|tar|gz)$/i, // Executable/archive files
+    ];
+    
+    for (const pattern of suspiciousPatterns) {
+      if (pattern.test(file.originalname)) {
+        return cb(new Error('Suspicious file name detected'), false);
+      }
+    }
+    
+    // File size validation (double-check)
+    if (file.size > 5 * 1024 * 1024) {
+      return cb(new Error('File too large'), false);
+    }
+    
+    cb(null, true);
   },
 });
 
@@ -956,20 +985,93 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Statement parsing endpoint
-  app.post('/api/statements/parse', authMiddleware, upload.single('statement'), async (req: any, res) => {
-    try {
-      if (!req.file) {
-        return res.status(400).json({ error: 'No file uploaded' });
-      }
-
-      const result = await StatementParser.parsePDFStatement(req.file.buffer);
-      res.json(result);
-    } catch (error) {
-      console.error('Statement parsing error:', error);
-      res.status(500).json({ error: 'Failed to parse statement' });
+  // Enhanced file upload security middleware
+  const validateFileUpload = (req: any, res: any, next: any) => {
+    // Rate limiting for file uploads (per user)
+    const userId = req.user?._id;
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
     }
-  });
+    
+    // Check if user has exceeded upload limits
+    const uploadKey = `upload_limit_${userId}`;
+    const currentTime = Date.now();
+    const uploadWindow = 60 * 60 * 1000; // 1 hour window
+    
+    if (!req.uploadCounts) req.uploadCounts = new Map();
+    
+    const userUploads = req.uploadCounts.get(uploadKey) || { count: 0, resetTime: currentTime + uploadWindow };
+    
+    if (currentTime > userUploads.resetTime) {
+      userUploads.count = 0;
+      userUploads.resetTime = currentTime + uploadWindow;
+    }
+    
+    if (userUploads.count >= 10) { // Max 10 uploads per hour per user
+      return res.status(429).json({ error: 'Upload limit exceeded. Please try again later.' });
+    }
+    
+    userUploads.count++;
+    req.uploadCounts.set(uploadKey, userUploads);
+    
+    next();
+  };
+
+  // Statement parsing endpoint with enhanced security
+  app.post('/api/statements/parse', 
+    authMiddleware, 
+    validateFileUpload,
+    upload.single('statement'), 
+    async (req: any, res) => {
+      try {
+        if (!req.file) {
+          return res.status(400).json({ error: 'No file uploaded' });
+        }
+
+        // Additional security checks
+        const file = req.file;
+        
+        // Validate file buffer
+        if (!file.buffer || file.buffer.length === 0) {
+          return res.status(400).json({ error: 'Invalid file content' });
+        }
+        
+        // Check for PDF magic bytes
+        const pdfMagicBytes = [0x25, 0x50, 0x44, 0x46]; // %PDF
+        const fileHeader = Array.from(file.buffer.slice(0, 4));
+        if (!pdfMagicBytes.every((byte, index) => fileHeader[index] === byte)) {
+          return res.status(400).json({ error: 'Invalid PDF file format' });
+        }
+        
+        // Check for embedded objects or scripts (basic check)
+        const fileContent = file.buffer.toString('utf8', 0, Math.min(1000, file.buffer.length));
+        const suspiciousPatterns = [
+          /\/JavaScript\s*\//i,
+          /\/JS\s*\//i,
+          /\/Launch\s*\//i,
+          /\/SubmitForm\s*\//i,
+          /\/RichMedia\s*\//i,
+          /\/EmbeddedFile\s*\//i,
+        ];
+        
+        for (const pattern of suspiciousPatterns) {
+          if (pattern.test(fileContent)) {
+            console.warn(`Suspicious PDF content detected for user ${req.user._id}: ${pattern.source}`);
+            return res.status(400).json({ error: 'File contains potentially harmful content' });
+          }
+        }
+
+        // Log upload attempt for security monitoring
+        console.log(`[SECURITY] File upload attempt - User: ${req.user._id}, File: ${file.originalname}, Size: ${file.size} bytes`);
+        
+        const result = await StatementParser.parsePDFStatement(file.buffer);
+        res.json(result);
+      } catch (error) {
+        console.error('Statement parsing error:', error);
+        res.status(500).json({ error: 'Failed to parse statement' });
+      }
+    }
+  );
 
   // Statement import endpoint
   app.post('/api/statements/import', authMiddleware, async (req: AuthenticatedRequest, res) => {

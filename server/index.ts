@@ -159,6 +159,11 @@ app.use('/api', (req, res, next) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict'
+    },
+    ignoreMethods: ['GET', 'HEAD', 'OPTIONS'],
+    value: (req) => {
+      const token = req.headers['x-csrf-token'];
+      return Array.isArray(token) ? token[0] : token || '';
     }
   })(req, res, next);
 });
