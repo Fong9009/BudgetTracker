@@ -29,10 +29,11 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { AddTransactionModal } from "@/components/modals/add-transaction-modal";
 import { TransferModal } from "@/components/modals/transfer-modal";
 import { ExportModal } from "@/components/export/export-modal";
+import { UploadStatementModal } from "@/components/modals/upload-statement-modal";
 import { formatCurrency, formatDateFull, getTransactionTypeColor, debounce, cn, groupTransferTransactions, type TransactionOrTransfer } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Search, Edit2, Trash2, Download, Calendar as CalendarIcon, Filter, ChevronDown, X, SlidersHorizontal, ArrowRightLeft, Clock, TrendingUp, Zap, Archive } from "lucide-react";
+import { Plus, Search, Edit2, Trash2, Download, Calendar as CalendarIcon, Filter, ChevronDown, X, SlidersHorizontal, ArrowRightLeft, Clock, TrendingUp, Zap, Archive, Upload } from "lucide-react";
 import { useLocation } from "wouter";
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subDays, subMonths } from "date-fns";
 import type { TransactionWithDetails, Account, Category } from "@shared/schema";
@@ -45,6 +46,7 @@ export default function Transactions() {
   const [showEditTransaction, setShowEditTransaction] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showUploadStatement, setShowUploadStatement] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<TransactionWithDetails | null>(null);
   const [deleteTransaction, setDeleteTransaction] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -329,6 +331,14 @@ export default function Transactions() {
               >
                 <ArrowRightLeft className="h-4 w-4" />
                 Transfer
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setShowUploadStatement(true)}
+                className="flex items-center gap-2"
+              >
+                <Upload className="h-4 w-4" />
+                Upload Statement
               </Button>
               <Button
                 onClick={() => setShowAddTransaction(true)}
@@ -1006,6 +1016,12 @@ export default function Transactions() {
       <TransferModal
         open={showTransferModal}
         onOpenChange={setShowTransferModal}
+      />
+
+      {/* Upload Statement Modal */}
+      <UploadStatementModal
+        open={showUploadStatement}
+        onOpenChange={setShowUploadStatement}
       />
 
       {/* Delete Confirmation Dialog */}

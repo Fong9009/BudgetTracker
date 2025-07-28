@@ -24,6 +24,23 @@ import { z } from "zod";
 import { sendEmail } from "./mail";
 import crypto from "crypto";
 import { EncryptionService } from "./encryption";
+import { StatementParser } from './statement-parser';
+import multer from 'multer';
+
+// Configure multer for file uploads
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+  },
+  fileFilter: (req: any, file: any, cb: any) => {
+    if (file.mimetype === 'application/pdf') {
+      cb(null, true);
+    } else {
+      cb(new Error('Only PDF files are allowed'));
+    }
+  },
+});
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // CSRF token endpoint (accessible without auth)
@@ -936,6 +953,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(200).json({ message: "Export functionality not yet implemented." });
     } catch (error) {
       res.status(500).json({ message: "Failed to process export request" });
+    }
+  });
+
+  // Statement parsing endpoint
+  app.post('/api/statements/parse', authMiddleware, upload.single('statement'), async (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded' });
+      }
+
+      const result = await StatementParser.parsePDFStatement(req.file.buffer);
+      res.json(result);
+    } catch (error) {
+      console.error('Statement parsing error:', error);
+      res.status(500).json({ error: 'Failed to parse statement' });
+    }
+  });
+
+  // Statement import endpoint
+  app.post('/api/statements/import', authMiddleware, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { accountId, transactions } = req.body;
+      const userId = req.user!._id;
+
+      if (!accountId || !transactions || !Array.isArray(transactions)) {
+        return res.status(400).json({ error: 'Invalid request data' });
+      }
+
+      // Verify account belongs to user
+      const account = await storage.getAccount(accountId);
+      if (!account || account.userId !== userId) {
+        return res.status(404).json({ error: 'Account not found' });
+      }
+
+      let importedCount = 0;
+      const errors: string[] = [];
+
+      for (const transaction of transactions) {
+        try {
+          await storage.createTransaction({
+            amount: transaction.amount.toString(),
+            description: transaction.description,
+            type: transaction.type,
+            date: transaction.date,
+            accountId: transaction.accountId || accountId,
+            categoryId: transaction.categoryId,
+          });
+          importedCount++;
+        } catch (error) {
+          errors.push(`Failed to import transaction "${transaction.description}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      res.json({
+        importedCount,
+        errors,
+        message: `Successfully imported ${importedCount} transactions`,
+      });
+    } catch (error) {
+      console.error('Statement import error:', error);
+      res.status(500).json({ error: 'Failed to import transactions' });
     }
   });
 
