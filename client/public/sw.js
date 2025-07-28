@@ -1,4 +1,4 @@
-const CACHE_NAME = 'finance-tracker-v7';
+const CACHE_NAME = 'finance-tracker-v8';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -12,7 +12,7 @@ const externalResources = [
 ];
 
 // API cache for offline functionality
-const API_CACHE_NAME = 'finance-tracker-api-v1';
+const API_CACHE_NAME = 'finance-tracker-api-v2';
 const API_CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
 
 // Offline fallback pages
@@ -124,64 +124,78 @@ async function handleApiRequest(request) {
   const url = new URL(request.url);
   const cacheKey = `${request.method}:${url.pathname}${url.search}`;
 
+  // Clone request body early to avoid "already used" errors
+  let requestBody = null;
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
+    try {
+      requestBody = await request.clone().text();
+    } catch (error) {
+      console.warn('Could not clone request body:', error);
+    }
+  }
+
   try {
     // Try to fetch from network first
     const response = await fetch(request);
     
     if (response.ok) {
-      // Cache successful API responses
-      const responseClone = response.clone();
-      const apiCache = await caches.open(API_CACHE_NAME);
-      
-      // Create a proper Request object for caching
-      const cacheRequest = new Request(cacheKey, {
-        method: 'GET',
-        headers: request.headers
-      });
-      
-      await apiCache.put(cacheRequest, responseClone);
-      
-      // Set cache expiration
-      const metadata = {
-        timestamp: Date.now(),
-        expires: Date.now() + API_CACHE_DURATION
-      };
-      const metadataRequest = new Request(`${cacheKey}:metadata`, { method: 'GET' });
-      await apiCache.put(metadataRequest, new Response(JSON.stringify(metadata)));
+      // Cache successful API responses (only for GET requests)
+      if (request.method === 'GET') {
+        const responseClone = response.clone();
+        const apiCache = await caches.open(API_CACHE_NAME);
+        
+        // Create a proper Request object for caching
+        const cacheRequest = new Request(cacheKey, {
+          method: 'GET',
+          headers: request.headers
+        });
+        
+        await apiCache.put(cacheRequest, responseClone);
+        
+        // Set cache expiration
+        const metadata = {
+          timestamp: Date.now(),
+          expires: Date.now() + API_CACHE_DURATION
+        };
+        const metadataRequest = new Request(`${cacheKey}:metadata`, { method: 'GET' });
+        await apiCache.put(metadataRequest, new Response(JSON.stringify(metadata)));
+      }
     }
     
     return response;
   } catch (error) {
     console.log('API request failed, trying cache:', request.url, error);
     
-    // Try to serve from cache
-    const apiCache = await caches.open(API_CACHE_NAME);
-    const cacheRequest = new Request(cacheKey, { method: 'GET' });
-    const cachedResponse = await apiCache.match(cacheRequest);
-    
-    if (cachedResponse) {
-      // Check if cache is still valid
-      const metadataRequest = new Request(`${cacheKey}:metadata`, { method: 'GET' });
-      const metadataResponse = await apiCache.match(metadataRequest);
-      if (metadataResponse) {
-        const metadata = JSON.parse(await metadataResponse.text());
-        if (Date.now() < metadata.expires) {
-          console.log('Serving cached API response:', request.url);
-          return cachedResponse;
+    // Try to serve from cache (only for GET requests)
+    if (request.method === 'GET') {
+      const apiCache = await caches.open(API_CACHE_NAME);
+      const cacheRequest = new Request(cacheKey, { method: 'GET' });
+      const cachedResponse = await apiCache.match(cacheRequest);
+      
+      if (cachedResponse) {
+        // Check if cache is still valid
+        const metadataRequest = new Request(`${cacheKey}:metadata`, { method: 'GET' });
+        const metadataResponse = await apiCache.match(metadataRequest);
+        if (metadataResponse) {
+          const metadata = JSON.parse(await metadataResponse.text());
+          if (Date.now() < metadata.expires) {
+            console.log('Serving cached API response:', request.url);
+            return cachedResponse;
+          }
         }
       }
-    }
-    
-    // Return offline response for GET requests
-    if (request.method === 'GET') {
+      
+      // Return offline response for GET requests
       const offlineData = getOfflineData(url.pathname);
       return new Response(JSON.stringify(offlineData), {
         headers: { 'Content-Type': 'application/json' }
       });
     }
     
-    // For non-GET requests, queue for later sync
-    await queueForSync(request);
+    // For non-GET requests, queue for later sync with preserved body
+    if (requestBody !== null) {
+      await queueForSync(request.url, request.method, requestBody);
+    }
     return new Response(JSON.stringify({
       message: 'Request queued for sync when online',
       queued: true
@@ -229,13 +243,13 @@ function getOfflineData(pathname) {
 }
 
 // Queue requests for later sync
-async function queueForSync(request) {
+async function queueForSync(url, method, body) {
   try {
     const syncQueue = await getSyncQueue();
     syncQueue.push({
-      url: request.url,
-      method: request.method,
-      body: request.method !== 'GET' ? await request.clone().text() : null,
+      url: url,
+      method: method,
+      body: method !== 'GET' ? body : null,
       timestamp: Date.now()
     });
     await setSyncQueue(syncQueue);

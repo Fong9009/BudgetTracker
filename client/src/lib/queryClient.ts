@@ -137,6 +137,9 @@ export async function loginAndFetchCSRF(loginFn: () => Promise<any>) {
   return result;
 }
 
+// Request deduplication cache
+const pendingRequests = new Map<string, Promise<any>>();
+
 export async function apiRequest(
   method: string,
   url: string,
@@ -144,6 +147,15 @@ export async function apiRequest(
   options: RequestInit = {},
   retryOnCSRFError = true
 ): Promise<any> {
+  // Create a unique key for request deduplication
+  const requestKey = `${method}:${url}:${data ? JSON.stringify(data) : ''}`;
+  
+  // Check if there's already a pending request with the same key
+  if (pendingRequests.has(requestKey)) {
+    console.log(`[API] Deduplicating request: ${method} ${url}`);
+    return pendingRequests.get(requestKey);
+  }
+  
   const token = await getValidToken();
   
   // Don't send CSRF tokens for auth endpoints
@@ -215,7 +227,17 @@ export async function apiRequest(
     return null;
   }
   
-  return res.json();
+  const result = res.json();
+  
+  // Store the promise in the deduplication cache
+  pendingRequests.set(requestKey, result);
+  
+  // Clean up the cache entry when the request completes
+  result.finally(() => {
+    pendingRequests.delete(requestKey);
+  });
+  
+  return result;
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";
@@ -256,11 +278,28 @@ export const queryClient = new QueryClient({
     queries: {
       refetchInterval: false,
       refetchOnWindowFocus: false,
-      staleTime: Infinity,
-      retry: false,
+      staleTime: 5 * 60 * 1000, // 5 minutes - data is fresh for 5 minutes
+      gcTime: 10 * 60 * 1000, // 10 minutes - keep in memory for 10 minutes
+      retry: (failureCount, error) => {
+        // Retry network errors, but not 4xx errors
+        if (failureCount >= 3) return false;
+        if (error instanceof Error && error.message.includes('Failed to fetch')) {
+          return true;
+        }
+        return false;
+      },
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
     },
     mutations: {
-      retry: false,
+      retry: (failureCount, error) => {
+        // Retry network errors for mutations, but not 4xx errors
+        if (failureCount >= 2) return false;
+        if (error instanceof Error && error.message.includes('Failed to fetch')) {
+          return true;
+        }
+        return false;
+      },
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
     },
   },
 });
