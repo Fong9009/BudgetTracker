@@ -261,17 +261,30 @@ export function UploadStatementModal({ open, onOpenChange }: UploadStatementModa
 
   const handleFileChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
-    if (selectedFile && selectedFile.type === "application/pdf") {
-      setFile(selectedFile);
-      setParseResult(null);
-      setSelectedTransactions(new Set());
-      setCategoryMappings(new Map());
-    } else {
-      toast({
-        title: "Invalid file type",
-        description: "Please select a PDF file",
-        variant: "destructive",
-      });
+    if (selectedFile) {
+      // Check for supported file types
+      const supportedTypes = [
+        'text/csv',
+        'application/csv',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+        'application/vnd.ms-excel' // .xls
+      ];
+      
+      const fileExtension = selectedFile.name.toLowerCase().substring(selectedFile.name.lastIndexOf('.'));
+      const supportedExtensions = ['.csv', '.xlsx', '.xls'];
+      
+      if (supportedTypes.includes(selectedFile.type) || supportedExtensions.includes(fileExtension)) {
+        setFile(selectedFile);
+        setParseResult(null);
+        setSelectedTransactions(new Set());
+        setCategoryMappings(new Map());
+      } else {
+        toast({
+          title: "Invalid file type",
+          description: "Please select a CSV or Excel file",
+          variant: "destructive",
+        });
+      }
     }
   }, [toast]);
 
@@ -340,7 +353,7 @@ export function UploadStatementModal({ open, onOpenChange }: UploadStatementModa
         <DialogHeader>
           <DialogTitle>Upload Bank Statement</DialogTitle>
           <DialogDescription>
-            Upload a PDF bank statement to automatically import transactions.
+            Upload a CSV or Excel bank statement to automatically import transactions.
           </DialogDescription>
         </DialogHeader>
 
