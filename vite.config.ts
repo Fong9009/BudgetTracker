@@ -34,6 +34,19 @@ export default defineConfig({
     },
   },
   root: path.resolve(__dirname, "client"),
+  server: {
+    fs: {
+      strict: true,
+      deny: ["**/.*"],
+    },
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5001',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
+  },
   build: {
     outDir: path.resolve(__dirname, "dist/public"),
     emptyOutDir: true,
@@ -49,12 +62,6 @@ export default defineConfig({
           'export-vendor': ['html2canvas', 'jspdf'],
         },
       },
-    },
-  },
-  server: {
-    fs: {
-      strict: true,
-      deny: ["**/.*"],
     },
   },
   preview: {

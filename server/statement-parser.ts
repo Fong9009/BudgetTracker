@@ -1,5 +1,3 @@
-import pdf from 'pdf-parse';
-
 export interface ParsedTransaction {
   date: Date;
   description: string;
@@ -50,17 +48,22 @@ export class StatementParser {
     };
 
     try {
-      const data = await pdf(pdfBuffer);
+      // Dynamic import to avoid the debug code issue
+      const pdfParse = (await import('pdf-parse')).default;
+      const data = await pdfParse(pdfBuffer);
       const text = data.text;
       
-      if (text) {
+      if (text && text.trim().length > 0) {
         const transactions = this.parseTransactionsFromText(text);
         result.transactions = this.deduplicateAndSortTransactions(transactions);
         result.accountNumber = this.extractAccountNumber(text);
         result.statementPeriod = this.extractStatementPeriod(text);
+      } else {
+        result.errors.push('No text content found in PDF. The PDF might be image-based or corrupted.');
       }
 
     } catch (error) {
+      console.error('PDF parsing error:', error);
       result.errors.push(`Failed to parse PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
 
