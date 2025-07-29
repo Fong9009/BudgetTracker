@@ -29,7 +29,7 @@ export default function Categories() {
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [showEditCategory, setShowEditCategory] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
-  const [deleteCategory, setDeleteCategory] = useState<string | null>(null);
+  const [archiveCategory, setArchiveCategory] = useState<string | null>(null);
   const [categoryOrder, setCategoryOrder] = useState<string[]>([]);
   const [viewingCategoryTransactions, setViewingCategoryTransactions] = useState<Category | null>(null);
   const { toast } = useToast();
@@ -85,9 +85,8 @@ export default function Categories() {
     },
   });
 
-  const deleteMutation = useMutation({
+  const archiveMutation = useMutation({
     mutationFn: async (id: string) => {
-      console.log("Deleting category with ID:", id);
       await apiRequest("DELETE", `/api/categories/${id}`);
     },
     onSuccess: () => {
@@ -101,7 +100,7 @@ export default function Categories() {
         description: "Category archived successfully. You can restore it from the archive if needed.",
         variant: "success",
       });
-      setDeleteCategory(null);
+      setArchiveCategory(null);
     },
     onError: (error: any) => {
       console.error("Category deletion error:", error);
@@ -111,15 +110,14 @@ export default function Categories() {
         description: errorMessage,
         variant: "destructive",
       });
-      setDeleteCategory(null);
+      setArchiveCategory(null);
     },
   });
 
   const filteredCategories = categoriesWithCounts.filter(c => c.name !== 'Transfer');
 
-  const handleDelete = (id: string) => {
-    console.log("handleDelete called with ID:", id);
-    deleteMutation.mutate(id);
+  const handleArchive = (id: string) => {
+    archiveMutation.mutate(id);
   };
 
   const handleEdit = (category: Category) => {
@@ -252,7 +250,7 @@ export default function Categories() {
               >
                 {(category) => (
                   <Card className="group relative">
-                    <CardContent className="p-4">
+                    <CardContent className="p-4 relative">
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center">
                           <div
@@ -268,21 +266,8 @@ export default function Categories() {
                             </p>
                           </div>
                         </div>
-                        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-                          <Button variant="ghost" size="sm" onClick={() => handleEdit(category)}>
-                            <Edit2 className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-red-500 hover:text-red-600"
-                            onClick={() => setDeleteCategory(category._id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
                       </div>
-                      <div className="pt-3 border-t border-border">
+                      <div className="pt-3 border-t border-border space-y-3">
                         <Button
                           variant="outline"
                           size="sm"
@@ -292,6 +277,27 @@ export default function Categories() {
                           <Receipt className="h-4 w-4 mr-2" />
                           View Transactions
                         </Button>
+                        
+                        <div className="flex space-x-2">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => handleEdit(category)}
+                            className="flex-1"
+                          >
+                            <Edit2 className="h-4 w-4 mr-2" />
+                            Edit
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="flex-1 text-red-500 hover:text-red-600"
+                            onClick={() => setArchiveCategory(category._id)}
+                          >
+                            <Archive className="h-4 w-4 mr-2" />
+                            Archive
+                          </Button>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -439,7 +445,7 @@ export default function Categories() {
       />
 
       {/* Archive Confirmation Dialog */}
-      <AlertDialog open={deleteCategory !== null} onOpenChange={() => setDeleteCategory(null)}>
+      <AlertDialog open={archiveCategory !== null} onOpenChange={() => setArchiveCategory(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Archive Category</AlertDialogTitle>
@@ -450,10 +456,10 @@ export default function Categories() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => deleteCategory && handleDelete(deleteCategory)}
+              onClick={() => archiveCategory && handleArchive(archiveCategory)}
               className="bg-orange-600 text-white hover:bg-orange-700"
             >
-              {deleteMutation.isPending ? "Archiving..." : "Archive"}
+              {archiveMutation.isPending ? "Archiving..." : "Archive"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

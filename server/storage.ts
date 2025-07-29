@@ -68,6 +68,8 @@ export interface IStorage {
   deleteTransaction(id: string): Promise<boolean>;
   getArchivedTransactions(userId: string): Promise<TransactionWithDetails[]>;
   restoreTransaction(id: string): Promise<boolean>;
+  archiveTransactions(transactionIds: string[], userId: string): Promise<number>;
+  restoreTransactions(transactionIds: string[], userId: string): Promise<number>;
   permanentDeleteTransaction(id: string): Promise<boolean>;
 
   // Transfers
@@ -860,119 +862,133 @@ export class MongoDBStorage implements IStorage {
     const session = await TransactionModel.startSession();
     
     try {
-      let restoredCount = 0;
-      
       await session.withTransaction(async () => {
-        // Find the transaction to restore
         const transaction = await TransactionModel.findById(id).session(session);
         if (!transaction) {
-          return;
+          throw new Error("Transaction not found");
         }
-        
-        // Check if this is a transfer transaction
-        const isTransfer = transaction.description.startsWith('Transfer to ') || 
-                          transaction.description.startsWith('Transfer from ');
-        
-        if (isTransfer) {
-          // For transfers, we need to restore both transactions and reapply account balances
-          const amount = transaction.amount;
-          const isFromTransaction = transaction.description.startsWith('Transfer to ');
-          
-          if (isFromTransaction) {
-            // This is the "from" transaction (expense)
-            // Find the corresponding "to" transaction (income)
-            const transferInfo = transaction.description.match(/^Transfer to ([^:]+): (.+)$/);
-            if (transferInfo) {
-              const [, toAccountName, userDescription] = transferInfo;
-              const toTransaction = await TransactionModel.findOne({
-                amount: amount,
-                type: 'income',
-                description: { $regex: `^Transfer from .+: ${userDescription.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$` },
-                date: transaction.date
-              }).session(session);
-              
-              if (toTransaction) {
-                // Restore both transactions
-                await TransactionModel.findByIdAndUpdate(transaction._id, { isArchived: false }, { session });
-                await TransactionModel.findByIdAndUpdate(toTransaction._id, { isArchived: false }, { session });
-                
-                // Reapply account balances
-                await Promise.all([
-                  AccountModel.findByIdAndUpdate(transaction.accountId, { 
-                    $inc: { balance: -amount } // Subtract the amount again
-                  }, { session }),
-                  AccountModel.findByIdAndUpdate(toTransaction.accountId, { 
-                    $inc: { balance: amount } // Add the amount again
-                  }, { session })
-                ]);
-                
-                restoredCount = 2;
-              } else {
-                // Only restore this transaction if we can't find the pair
-                await TransactionModel.findByIdAndUpdate(transaction._id, { isArchived: false }, { session });
-                restoredCount = 1;
-              }
-            }
-          } else {
-            // This is the "to" transaction (income) - find the corresponding "from" transaction
-            const transferInfo = transaction.description.match(/^Transfer from ([^:]+): (.+)$/);
-            if (transferInfo) {
-              const [, fromAccountName, userDescription] = transferInfo;
-              const fromTransaction = await TransactionModel.findOne({
-                amount: amount,
-                type: 'expense',
-                description: { $regex: `^Transfer to .+: ${userDescription.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$` },
-                date: transaction.date
-              }).session(session);
-              
-              if (fromTransaction) {
-                // Restore both transactions
-                await TransactionModel.findByIdAndUpdate(transaction._id, { isArchived: false }, { session });
-                await TransactionModel.findByIdAndUpdate(fromTransaction._id, { isArchived: false }, { session });
-                
-                // Reapply account balances
-                await Promise.all([
-                  AccountModel.findByIdAndUpdate(fromTransaction.accountId, { 
-                    $inc: { balance: -amount } // Subtract the amount again
-                  }, { session }),
-                  AccountModel.findByIdAndUpdate(transaction.accountId, { 
-                    $inc: { balance: amount } // Add the amount again
-                  }, { session })
-                ]);
-                
-                restoredCount = 2;
-              } else {
-                // Only restore this transaction if we can't find the pair
-                await TransactionModel.findByIdAndUpdate(transaction._id, { isArchived: false }, { session });
-                restoredCount = 1;
-              }
-            }
-          }
-        } else {
-          // Regular transaction - restore it and reapply account balance
-          await TransactionModel.findByIdAndUpdate(transaction._id, { isArchived: false }, { session });
-          
-          // Reapply account balance based on transaction type
-          const amount = transaction.amount;
-          const balanceUpdate = transaction.type === 'income' ? amount : -amount; // Reapply the original effect
-          
-          await AccountModel.findByIdAndUpdate(
-            transaction.accountId,
-            { $inc: { balance: balanceUpdate } },
-            { session }
-          );
-          
-          restoredCount = 1;
+
+        if (!transaction.isArchived) {
+          throw new Error("Transaction is not archived");
         }
+
+        // Restore the transaction
+        await TransactionModel.findByIdAndUpdate(id, { isArchived: false }, { session });
+
+        // Reapply account balance based on transaction type
+        const amount = transaction.amount;
+        const balanceUpdate = transaction.type === 'income' ? amount : -amount; // Reapply the original effect
+
+        await AccountModel.findByIdAndUpdate(
+          transaction.accountId,
+          { $inc: { balance: balanceUpdate } },
+          { session }
+        );
       });
-      
-      return restoredCount > 0;
+      return true;
     } catch (error) {
+      console.error("Error restoring transaction:", error);
       throw error;
     } finally {
       await session.endSession();
     }
   }
+
+  async archiveTransactions(transactionIds: string[], userId: string): Promise<number> {
+    const session = await TransactionModel.startSession();
+    let archivedCount = 0;
+
+    try {
+      await session.withTransaction(async () => {
+        for (const transactionId of transactionIds) {
+          const transaction = await TransactionModel.findById(transactionId).session(session);
+          if (!transaction) {
+            continue;
+          }
+
+          // Check if transaction belongs to user by checking the account's userId
+          const account = await AccountModel.findById(transaction.accountId).session(session);
+          if (!account || account.userId.toString() !== userId) {
+            throw new Error(`Transaction with ID ${transactionId} does not belong to user ${userId}`);
+          }
+
+          // Check if transaction is already archived
+          if (transaction.isArchived) {
+            continue;
+          }
+
+          // Archive the transaction
+          await TransactionModel.findByIdAndUpdate(transactionId, { isArchived: true }, { session });
+
+          // Revert account balance based on transaction type
+          const amount = transaction.amount;
+          const balanceUpdate = transaction.type === 'income' ? -amount : amount; // Reverse the original effect
+
+          await AccountModel.findByIdAndUpdate(
+            transaction.accountId,
+            { $inc: { balance: balanceUpdate } },
+            { session }
+          );
+          archivedCount++;
+        }
+      });
+      return archivedCount;
+    } catch (error) {
+      console.error("Error archiving transactions:", error);
+      throw error;
+    } finally {
+      await session.endSession();
+    }
+  }
+
+  async restoreTransactions(transactionIds: string[], userId: string): Promise<number> {
+    const session = await TransactionModel.startSession();
+    let restoredCount = 0;
+
+    try {
+      await session.withTransaction(async () => {
+        for (const transactionId of transactionIds) {
+          const transaction = await TransactionModel.findById(transactionId).session(session);
+          if (!transaction) {
+            continue;
+          }
+
+          // Check if transaction belongs to user by checking the account's userId
+          const account = await AccountModel.findById(transaction.accountId).session(session);
+          if (!account || account.userId.toString() !== userId) {
+            throw new Error(`Transaction with ID ${transactionId} does not belong to user ${userId}`);
+          }
+
+          // Check if transaction is already restored
+          if (!transaction.isArchived) {
+            continue;
+          }
+
+          // Restore the transaction
+          await TransactionModel.findByIdAndUpdate(transactionId, { isArchived: false }, { session });
+
+          // Reapply account balance based on transaction type
+          const amount = transaction.amount;
+          const balanceUpdate = transaction.type === 'income' ? amount : -amount; // Reapply the original effect
+
+          await AccountModel.findByIdAndUpdate(
+            transaction.accountId,
+            { $inc: { balance: balanceUpdate } },
+            { session }
+          );
+          restoredCount++;
+        }
+      });
+      return restoredCount;
+    } catch (error) {
+      console.error("Error restoring transactions:", error);
+      throw error;
+    } finally {
+      await session.endSession();
+    }
+  }
+
+
 
   async permanentDeleteTransaction(id: string): Promise<boolean> {
     const session = await TransactionModel.startSession();

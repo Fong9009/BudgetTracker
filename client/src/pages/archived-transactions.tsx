@@ -22,6 +22,7 @@ import { getValidToken } from "@/lib/queryClient";
 
 export default function ArchivedTransactions() {
   const [restoreTransaction, setRestoreTransaction] = useState<string | null>(null);
+  const [restoreAllTransactions, setRestoreAllTransactions] = useState(false);
   const [permanentDeleteTransaction, setPermanentDeleteTransaction] = useState<string | null>(null);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -76,6 +77,33 @@ export default function ArchivedTransactions() {
     },
   });
 
+  const restoreAllMutation = useMutation({
+    mutationFn: async () => {
+      const transactionIds = archivedTransactions.map(transaction => transaction._id);
+      await apiRequest("POST", "/api/transactions/restore-all", { transactionIds });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/transactions/archived"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/categories/with-counts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/analytics"] });
+      toast({
+        title: "Success",
+        description: `All ${archivedTransactions.length} transactions restored successfully`,
+        variant: "success",
+      });
+      setRestoreAllTransactions(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to restore all transactions",
+        variant: "destructive",
+      });
+    },
+  });
+
   const permanentDeleteMutation = useMutation({
     mutationFn: async (id: string) => {
       await apiRequest("DELETE", `/api/transactions/${id}/permanent`);
@@ -100,6 +128,10 @@ export default function ArchivedTransactions() {
 
   const handleRestore = (id: string) => {
     restoreMutation.mutate(id);
+  };
+
+  const handleRestoreAll = () => {
+    restoreAllMutation.mutate();
   };
 
   const handlePermanentDelete = (id: string) => {
@@ -134,6 +166,16 @@ export default function ArchivedTransactions() {
                 </p>
               </div>
             </div>
+            {groupedTransactions.length > 0 && (
+              <Button
+                variant="outline"
+                onClick={() => setRestoreAllTransactions(true)}
+                className="flex items-center gap-2 text-green-600 hover:text-green-700"
+              >
+                <RotateCcw className="h-4 w-4" />
+                Restore All ({groupedTransactions.length})
+              </Button>
+            )}
           </div>
 
           {/* Archived Transactions List */}
@@ -293,6 +335,28 @@ export default function ArchivedTransactions() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {permanentDeleteMutation.isPending ? "Deleting..." : "Permanently Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Restore All Confirmation Dialog */}
+      <AlertDialog open={restoreAllTransactions} onOpenChange={setRestoreAllTransactions}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Restore all transactions?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will restore all {groupedTransactions.length} archived transactions and update your account balances. 
+              They will be moved back to your active transactions.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleRestoreAll}
+              className="bg-green-600 text-white hover:bg-green-700"
+            >
+              {restoreAllMutation.isPending ? "Restoring..." : "Restore All"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

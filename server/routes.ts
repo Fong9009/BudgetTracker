@@ -784,6 +784,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Archive all transactions endpoint
+  app.post("/api/transactions/archive-all", authMiddleware, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { transactionIds } = req.body;
+      
+      if (!Array.isArray(transactionIds) || transactionIds.length === 0) {
+        return res.status(400).json({ message: "Invalid transaction IDs provided" });
+      }
+
+      const userId = req.user!._id;
+      const archivedCount = await storage.archiveTransactions(transactionIds, userId);
+      
+      res.json({ 
+        message: `Successfully archived ${archivedCount} transactions`,
+        archivedCount 
+      });
+    } catch (error) {
+      console.error("Archive all transactions error:", error);
+      res.status(500).json({ message: "Failed to archive transactions" });
+    }
+  });
+
+  // Restore all transactions endpoint
+  app.post("/api/transactions/restore-all", authMiddleware, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { transactionIds } = req.body;
+      
+      if (!Array.isArray(transactionIds) || transactionIds.length === 0) {
+        return res.status(400).json({ message: "Invalid transaction IDs provided" });
+      }
+
+      const userId = req.user!._id;
+      const restoredCount = await storage.restoreTransactions(transactionIds, userId);
+      
+      res.json({ 
+        message: `Successfully restored ${restoredCount} transactions`,
+        restoredCount 
+      });
+    } catch (error) {
+      console.error("Restore all transactions error:", error);
+      res.status(500).json({ message: "Failed to restore transactions" });
+    }
+  });
+
   // Transfer routes (protected)
   app.post("/api/transfers", authMiddleware, validateRequest(transferSchema), async (req: AuthenticatedRequest, res) => {
     try {

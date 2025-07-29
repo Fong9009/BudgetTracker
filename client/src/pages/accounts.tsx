@@ -31,7 +31,7 @@ export default function Accounts() {
   const [showEditAccount, setShowEditAccount] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
-  const [deleteAccount, setDeleteAccount] = useState<string | null>(null);
+  const [archiveAccount, setArchiveAccount] = useState<string | null>(null);
   const [accountOrder, setAccountOrder] = useState<string[]>([]);
   const [viewingAccountTransactions, setViewingAccountTransactions] = useState<Account | null>(null);
   const [, setLocation] = useLocation();
@@ -88,7 +88,7 @@ export default function Accounts() {
     },
   });
 
-  const deleteMutation = useMutation({
+  const archiveMutation = useMutation({
     mutationFn: async (id: string) => {
       await apiRequest("DELETE", `/api/accounts/${id}`);
     },
@@ -101,7 +101,7 @@ export default function Accounts() {
         description: "Account archived successfully. You can restore it from the archive if needed.",
         variant: "success",
       });
-      setDeleteAccount(null);
+      setArchiveAccount(null);
     },
     onError: (error: any) => {
       toast({
@@ -112,8 +112,8 @@ export default function Accounts() {
     },
   });
 
-  const handleDelete = (id: string) => {
-    deleteMutation.mutate(id);
+  const handleArchive = (id: string) => {
+    archiveMutation.mutate(id);
   };
 
   const handleEdit = (account: Account) => {
@@ -280,8 +280,8 @@ export default function Accounts() {
                 getId={(account) => account._id}
               >
                 {(account) => (
-                  <Card className="hover:shadow-md transition-shadow">
-                    <CardContent className="pt-6">
+                  <Card className="hover:shadow-md transition-shadow relative">
+                    <CardContent className="pt-6 relative">
                       <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center">
                           <div className={`w-12 h-12 ${getAccountTypeColor(account.type)} rounded-lg flex items-center justify-center`}>
@@ -295,20 +295,6 @@ export default function Accounts() {
                               {account.type} Account
                             </p>
                           </div>
-                        </div>
-                        <div className="flex space-x-2">
-                          <Button variant="ghost" size="sm" onClick={() => handleEdit(account)}>
-                            <Edit2 className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setDeleteAccount(account._id)}
-                            className="text-orange-600 hover:text-orange-700"
-                            title="Archive account"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
                         </div>
                       </div>
                       
@@ -331,7 +317,7 @@ export default function Accounts() {
                         </div>
                       )}
 
-                      <div className="mt-4 pt-4 border-t border-border">
+                      <div className="mt-4 pt-4 border-t border-border space-y-3">
                         <Button
                           variant="outline"
                           size="sm"
@@ -341,6 +327,27 @@ export default function Accounts() {
                           <Receipt className="h-4 w-4 mr-2" />
                           View Transactions
                         </Button>
+                        
+                        <div className="flex space-x-2">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => handleEdit(account)}
+                            className="flex-1"
+                          >
+                            <Edit2 className="h-4 w-4 mr-2" />
+                            Edit
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setArchiveAccount(account._id)}
+                            className="flex-1 text-orange-600 hover:text-orange-700"
+                          >
+                            <Archive className="h-4 w-4 mr-2" />
+                            Archive
+                          </Button>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -442,7 +449,7 @@ export default function Accounts() {
         <TransferModal open={showTransferModal} onOpenChange={setShowTransferModal} />
 
         {/* Archive Confirmation */}
-        <AlertDialog open={deleteAccount !== null} onOpenChange={() => setDeleteAccount(null)}>
+        <AlertDialog open={archiveAccount !== null} onOpenChange={() => setArchiveAccount(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Archive Account</AlertDialogTitle>
@@ -454,10 +461,10 @@ export default function Accounts() {
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction
-                onClick={() => deleteAccount && handleDelete(deleteAccount)}
+                onClick={() => archiveAccount && handleArchive(archiveAccount)}
                 className="bg-orange-600 text-white hover:bg-orange-700"
               >
-                {deleteMutation.isPending ? "Archiving..." : "Archive"}
+                {archiveMutation.isPending ? "Archiving..." : "Archive"}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

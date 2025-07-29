@@ -49,7 +49,8 @@ export default function Transactions() {
   const [showExportModal, setShowExportModal] = useState(false);
   const [showUploadStatement, setShowUploadStatement] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<TransactionWithDetails | null>(null);
-  const [deleteTransaction, setDeleteTransaction] = useState<string | null>(null);
+  const [archiveTransaction, setArchiveTransaction] = useState<string | null>(null);
+  const [archiveAllTransactions, setArchiveAllTransactions] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
   const [searchTerm, setSearchTerm] = useState("");
@@ -168,7 +169,7 @@ export default function Transactions() {
 
   const filteredCategoriesForDropdown = Array.isArray(categories) ? categories.filter(c => c.name !== 'Transfer') : [];
 
-  const deleteMutation = useMutation({
+  const archiveMutation = useMutation({
     mutationFn: async (id: string) => {
       await apiRequest("DELETE", `/api/transactions/${id}`);
     },
@@ -180,15 +181,44 @@ export default function Transactions() {
       queryClient.invalidateQueries({ queryKey: ["/api/analytics"] });
       toast({
         title: "Success",
-        description: "Transaction archived successfully. You can restore it from the archive if needed.",
+        description: "Transaction archived successfully",
         variant: "success",
       });
-      setDeleteTransaction(null);
+      setArchiveTransaction(null);
     },
     onError: (error: any) => {
       toast({
         title: "Error",
         description: error.message || "Failed to archive transaction",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const archiveAllMutation = useMutation({
+    mutationFn: async () => {
+      const transactionIds = groupedTransactions.map(item => 
+        item.type === 'transfer' ? item.fromTransactionId! : item._id
+      );
+      await apiRequest("POST", "/api/transactions/archive-all", { transactionIds });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/transactions/archived"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/categories/with-counts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/analytics"] });
+      toast({
+        title: "Success",
+        description: `All ${groupedTransactions.length} transactions archived successfully`,
+        variant: "success",
+      });
+      setArchiveAllTransactions(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to archive all transactions",
         variant: "destructive",
       });
     },
@@ -289,8 +319,12 @@ export default function Transactions() {
     return count;
   };
 
-  const handleDelete = (id: string) => {
-    deleteMutation.mutate(id);
+  const handleArchive = (id: string) => {
+    archiveMutation.mutate(id);
+  };
+
+  const handleArchiveAll = () => {
+    archiveAllMutation.mutate();
   };
 
   return (
@@ -316,6 +350,16 @@ export default function Transactions() {
                 <Archive className="h-4 w-4" />
                 View Archive
               </Button>
+              {groupedTransactions.length > 0 && (
+                <Button
+                  variant="outline"
+                  onClick={() => setArchiveAllTransactions(true)}
+                  className="flex items-center gap-2 text-orange-600 hover:text-orange-700"
+                >
+                  <Archive className="h-4 w-4" />
+                  Archive All ({groupedTransactions.length})
+                </Button>
+              )}
               <Button
                 variant="outline"
                 onClick={() => setShowExportModal(true)}
@@ -988,14 +1032,14 @@ export default function Transactions() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => setDeleteTransaction(
+                            onClick={() => setArchiveTransaction(
                               item.type === 'transfer' 
                                 ? item.fromTransactionId! 
                                 : item._id
                             )}
                             className="text-destructive hover:text-destructive"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Archive className="h-4 w-4" />
                           </Button>
                         </div>
                       </div>
@@ -1039,23 +1083,45 @@ export default function Transactions() {
         transaction={selectedTransaction}
       />
 
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteTransaction !== null} onOpenChange={() => setDeleteTransaction(null)}>
+      {/* Archive Confirmation Dialog */}
+      <AlertDialog open={archiveTransaction !== null} onOpenChange={() => setArchiveTransaction(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogTitle>Archive transaction?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the transaction
-              and update your account balance.
+              This will archive the transaction and update your account balance. 
+              You can restore it from the archive later if needed.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => deleteTransaction && handleDelete(deleteTransaction)}
+              onClick={() => archiveTransaction && handleArchive(archiveTransaction)}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {deleteMutation.isPending ? "Deleting..." : "Delete"}
+              {archiveMutation.isPending ? "Archiving..." : "Archive"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Archive All Confirmation Dialog */}
+      <AlertDialog open={archiveAllTransactions} onOpenChange={setArchiveAllTransactions}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Archive all transactions?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will archive all {groupedTransactions.length} visible transactions and update your account balances. 
+              You can restore them from the archive later if needed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleArchiveAll}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {archiveAllMutation.isPending ? "Archiving..." : "Archive All"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

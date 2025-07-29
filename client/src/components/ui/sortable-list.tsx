@@ -40,26 +40,27 @@ export function SortableListItem({ id, children, className = '' }: SortableListI
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : 1,
+    opacity: isDragging ? 0.8 : 1,
+    zIndex: isDragging ? 1000 : 'auto',
+    position: isDragging ? 'relative' as const : 'static' as const,
   };
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`group relative ${className}`}
+      className={`group ${className}`}
       data-draggable="true"
     >
-      {/* Mobile drag handle - always visible on mobile */}
+      {children}
+      {/* Drag handle - positioned relative to the list item content */}
       <div
         {...attributes}
         {...listeners}
-        className="absolute top-2 right-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing z-10 p-2 rounded bg-background/80 hover:bg-background drag-handle-mobile border border-border/50"
-        title="Drag to reorder"
+        className="absolute top-2 right-2 opacity-100 transition-opacity cursor-grab active:cursor-grabbing z-50 p-2 rounded-md bg-background/95 hover:bg-background drag-handle-mobile border border-border shadow-md"
       >
-        <GripVertical className="h-5 w-5 text-muted-foreground" />
+        <GripVertical className="h-4 w-4 text-muted-foreground" />
       </div>
-      {children}
     </div>
   );
 }
@@ -76,14 +77,14 @@ export function SortableList<T>({ items, onReorder, children, className = '', ge
   const sensors = useSensors(
     useSensor(TouchSensor, {
       activationConstraint: {
-        delay: 250,
-        tolerance: 5,
+        delay: 150, // Reduced from 250ms for faster response
+        tolerance: 8, // Increased tolerance for better touch handling
       },
     }),
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8, // Minimum distance to start dragging
-        tolerance: 5, // Tolerance for accidental touches
+        distance: 5, // Reduced from 8px for more responsive dragging
+        tolerance: 8, // Increased tolerance for better touch handling
       },
     }),
     useSensor(KeyboardSensor, {
