@@ -1162,83 +1162,95 @@ export class MongoDBStorage implements IStorage {
   }
 
   async permanentDeleteTransactions(transactionIds: string[], userId: string): Promise<number> {
+    console.log("permanentDeleteTransactions called with:", { transactionIds, userId });
     const session = await TransactionModel.startSession();
     
     try {
       let totalDeletedCount = 0;
       
       await session.withTransaction(async () => {
+        // Get user's account IDs more reliably
+        const userAccounts = await AccountModel.find({ userId }).select('_id').session(session);
+        const userAccountIds = userAccounts.map(account => account._id);
+        console.log("User account IDs:", userAccountIds);
+        
         // Verify all transactions belong to the user and are archived
         const transactions = await TransactionModel.find({
-          _id: { $in: transactionIds },
-          userId: userId,
+          _id: { $in: transactionIds.map(id => new mongoose.Types.ObjectId(id)) },
+          accountId: { $in: userAccountIds },
           isArchived: true
         }).session(session);
+
+        console.log("Found transactions:", transactions.length, "out of", transactionIds.length);
 
         if (transactions.length !== transactionIds.length) {
           throw new Error("Some transactions not found or not accessible");
         }
 
+        const processedIds = new Set<string>();
+
         // Delete each transaction permanently
         for (const transaction of transactions) {
+          const txIdString = transaction._id.toString();
+          if (processedIds.has(txIdString)) {
+            continue;
+          }
+
           const isTransfer = transaction.description.startsWith('Transfer to ') || 
                             transaction.description.startsWith('Transfer from ');
           
           if (isTransfer) {
-            // For transfers, we need to delete both transactions
             const amount = transaction.amount;
             const isFromTransaction = transaction.description.startsWith('Transfer to ');
             
             if (isFromTransaction) {
-              // This is the "from" transaction (expense)
-              // Find the corresponding "to" transaction (income)
               const transferInfo = transaction.description.match(/^Transfer to ([^:]+): (.+)$/);
               if (transferInfo) {
-                const [, toAccountName, userDescription] = transferInfo;
+                const [, , userDescription] = transferInfo;
                 const toTransaction = await TransactionModel.findOne({
                   amount: amount,
                   type: 'income',
                   description: { $regex: `^Transfer from .+: ${userDescription.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$` },
                   date: transaction.date,
-                  userId: userId,
+                  accountId: { $in: userAccountIds },
                   isArchived: true
                 }).session(session);
                 
                 if (toTransaction) {
-                  // Delete both transactions permanently
                   await TransactionModel.findByIdAndDelete(transaction._id).session(session);
                   await TransactionModel.findByIdAndDelete(toTransaction._id).session(session);
                   totalDeletedCount += 2;
+                  processedIds.add(transaction._id.toString());
+                  processedIds.add(toTransaction._id.toString());
                 } else {
-                  // Only delete this transaction if we can't find the pair
                   await TransactionModel.findByIdAndDelete(transaction._id).session(session);
                   totalDeletedCount += 1;
+                  processedIds.add(transaction._id.toString());
                 }
               }
             } else {
-              // This is the "to" transaction (income)
-              // Find the corresponding "from" transaction (expense)
               const transferInfo = transaction.description.match(/^Transfer from ([^:]+): (.+)$/);
               if (transferInfo) {
-                const [, fromAccountName, userDescription] = transferInfo;
+                const [, , userDescription] = transferInfo;
                 const fromTransaction = await TransactionModel.findOne({
                   amount: amount,
                   type: 'expense',
                   description: { $regex: `^Transfer to .+: ${userDescription.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$` },
                   date: transaction.date,
-                  userId: userId,
+                  accountId: { $in: userAccountIds },
                   isArchived: true
                 }).session(session);
                 
                 if (fromTransaction) {
-                  // Delete both transactions permanently
                   await TransactionModel.findByIdAndDelete(transaction._id).session(session);
                   await TransactionModel.findByIdAndDelete(fromTransaction._id).session(session);
                   totalDeletedCount += 2;
+                  processedIds.add(transaction._id.toString());
+                  processedIds.add(fromTransaction._id.toString());
                 } else {
-                  // Only delete this transaction if we can't find the pair
                   await TransactionModel.findByIdAndDelete(transaction._id).session(session);
                   totalDeletedCount += 1;
+                  processedIds.add(transaction._id.toString());
                 }
               }
             }
@@ -1246,12 +1258,14 @@ export class MongoDBStorage implements IStorage {
             // Regular transaction - just delete it permanently
             await TransactionModel.findByIdAndDelete(transaction._id).session(session);
             totalDeletedCount += 1;
+            processedIds.add(transaction._id.toString());
           }
         }
       });
       
       return totalDeletedCount;
     } catch (error) {
+      console.error("Error in permanentDeleteTransactions:", error);
       throw error;
     } finally {
       await session.endSession();

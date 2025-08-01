@@ -127,7 +127,7 @@ export default function ArchivedCategories() {
   const deleteAllMutation = useMutation({
     mutationFn: async () => {
       const categoryIds = archivedCategories.map(category => category._id);
-      await apiRequest("DELETE", "/api/categories/delete-all", { categoryIds });
+      await apiRequest("POST", "/api/categories/delete-all", { categoryIds });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/categories/archived"] });

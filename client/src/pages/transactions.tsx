@@ -230,6 +230,67 @@ export default function Transactions() {
     return groupTransferTransactions(transactions);
   }, [transactions]);
 
+  // Calculate running balances for each account
+  const transactionsWithRunningBalances = useMemo(() => {
+    const accountBalances: { [key: string]: number } = {};
+    const accountTransactions: { [key: string]: TransactionOrTransfer[] } = {};
+
+    // Initialize balances and group transactions by account
+    accounts.forEach(account => {
+      accountBalances[account._id] = account.initialBalance || 0;
+      accountTransactions[account._id] = [];
+    });
+
+    // Group transactions by account
+    groupedTransactions.forEach(item => {
+      if (item.type === 'transfer') {
+        if (item.fromAccount && accountTransactions[item.fromAccount._id]) {
+          accountTransactions[item.fromAccount._id].push(item);
+        }
+        if (item.toAccount && accountTransactions[item.toAccount._id]) {
+          accountTransactions[item.toAccount._id].push(item);
+        }
+      } else {
+        if (accountTransactions[item.accountId]) {
+          accountTransactions[item.accountId].push(item);
+        }
+      }
+    });
+
+    // Calculate running balance for each account's transactions
+    const transactionsWithBalances: (TransactionOrTransfer & { runningBalance: number })[] = [];
+    Object.keys(accountTransactions).forEach(accountId => {
+      let currentBalance = accountBalances[accountId];
+      accountTransactions[accountId]
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+        .forEach(item => {
+          if (item.type === 'income') {
+            currentBalance += item.amount;
+          } else if (item.type === 'expense') {
+            currentBalance -= item.amount;
+          } else if (item.type === 'transfer') {
+            if (item.fromAccount?._id === accountId) {
+              currentBalance -= item.amount;
+            }
+            if (item.toAccount?._id === accountId) {
+              currentBalance += item.amount;
+            }
+          }
+          transactionsWithBalances.push({ ...item, runningBalance: currentBalance });
+        });
+    });
+    
+    // Sort all transactions back to the original order
+    return transactionsWithBalances.sort((a, b) => {
+      const dateComparison = new Date(b.date).getTime() - new Date(a.date).getTime();
+      if (dateComparison !== 0) return dateComparison;
+      if (b.createdAt && a.createdAt) {
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }
+      return 0;
+    });
+  }, [groupedTransactions, accounts]);
+
   // Debounced search handler
   const handleSearchChange = debounce((value: string) => {
     setSearchTerm(value);
@@ -880,7 +941,7 @@ export default function Transactions() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle>
-                  All Transactions ({groupedTransactions.length})
+                  All Transactions ({transactionsWithRunningBalances.length})
                 </CardTitle>
                 {/* View Toggle, Sort Controls, and Archive Actions */}
                 <div className="flex items-center gap-2">
@@ -937,7 +998,7 @@ export default function Transactions() {
                       <Archive className="h-3 w-3" />
                       Archive
                     </Button>
-                    {groupedTransactions.length > 0 && (
+                    {transactionsWithRunningBalances.length > 0 && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -945,7 +1006,7 @@ export default function Transactions() {
                         className="flex items-center gap-1 text-orange-600 hover:text-orange-700"
                       >
                         <Archive className="h-3 w-3" />
-                        All ({groupedTransactions.length})
+                        All ({transactionsWithRunningBalances.length})
                       </Button>
                     )}
                   </div>
@@ -971,7 +1032,7 @@ export default function Transactions() {
                     </div>
                   ))}
                 </div>
-              ) : groupedTransactions.length === 0 ? (
+              ) : transactionsWithRunningBalances.length === 0 ? (
                 <div className="text-center py-12">
                   <div className="w-16 h-16 mx-auto bg-muted rounded-full flex items-center justify-center mb-4">
                     <i className="fas fa-receipt text-muted-foreground text-xl" />
@@ -996,7 +1057,7 @@ export default function Transactions() {
                 </div>
               ) : transactionViewMode === 'list' ? (
                 <div className="space-y-0 divide-y divide-border">
-                  {groupedTransactions.map((item) => (
+                  {transactionsWithRunningBalances.map((item) => (
                     <div key={item._id} className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors">
                       <div className="flex items-center flex-1">
                         <div className="flex-shrink-0">
@@ -1090,6 +1151,7 @@ export default function Transactions() {
                   <table className="w-full">
                     <thead>
                       <tr className="border-b border-border">
+                        <th className="text-left p-3 font-medium text-muted-foreground w-12">#</th>
                         <th className="text-left p-3 font-medium text-muted-foreground">Date</th>
                         <th className="text-left p-3 font-medium text-muted-foreground">Transaction Details</th>
                         <th className="text-right p-3 font-medium text-muted-foreground">Money In</th>
@@ -1099,25 +1161,10 @@ export default function Transactions() {
                       </tr>
                     </thead>
                     <tbody>
-                      {groupedTransactions.map((item, index) => {
-                        // Calculate running balance from the current transaction backwards
-                        const runningBalance = groupedTransactions
-                          .slice(0, index + 1)
-                          .reduce((balance, transaction) => {
-                            if (transaction.type === 'income') {
-                              return balance + transaction.amount;
-                            } else if (transaction.type === 'expense') {
-                              return balance - transaction.amount;
-                            } else if (transaction.type === 'transfer') {
-                              // For transfers, we need to determine if it's money in or out based on the account
-                              // For now, we'll treat it as neutral (no change to balance)
-                              return balance;
-                            }
-                            return balance;
-                          }, 0);
-                        
+                      {transactionsWithRunningBalances.map((item, index) => {
                         return (
                           <tr key={item._id} className="border-b border-border hover:bg-muted/50 transition-colors">
+                            <td className="p-3 text-sm text-muted-foreground">{index + 1}</td>
                             <td className="p-3 text-sm text-muted-foreground">
                               {format(item.date, 'dd/MM/yyyy')}
                             </td>
@@ -1180,7 +1227,7 @@ export default function Transactions() {
                             </td>
                             <td className="p-3 text-right">
                               <p className="text-sm font-medium text-foreground">
-                                {formatCurrency(runningBalance)}
+                                {formatCurrency(item.runningBalance)}
                               </p>
                             </td>
                             <td className="p-3">

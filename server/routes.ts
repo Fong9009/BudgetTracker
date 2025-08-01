@@ -604,7 +604,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete all accounts endpoint
-  app.delete("/api/accounts/delete-all", authMiddleware, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/accounts/delete-all", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {
       const { accountIds } = req.body;
       
@@ -679,7 +679,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete all categories endpoint
-  app.delete("/api/categories/delete-all", authMiddleware, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/categories/delete-all", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {
       const { categoryIds } = req.body;
       
@@ -902,9 +902,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete all transactions endpoint
-  app.delete("/api/transactions/delete-all", authMiddleware, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/transactions/delete-all", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {
+      console.log("Delete all transactions request body:", req.body);
+      console.log("Request headers:", req.headers);
+      
+      if (!req.body || !req.body.transactionIds) {
+        console.log("No request body or transactionIds found");
+        return res.status(400).json({ message: "Request body with transactionIds is required" });
+      }
+      
       const { transactionIds } = req.body;
+      
+      console.log("Transaction IDs:", transactionIds);
+      console.log("User ID:", req.user!._id);
       
       if (!Array.isArray(transactionIds) || transactionIds.length === 0) {
         return res.status(400).json({ message: "Invalid transaction IDs provided" });
@@ -912,6 +923,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const userId = req.user!._id;
       const deletedCount = await storage.permanentDeleteTransactions(transactionIds, userId);
+      
+      console.log("Deleted count:", deletedCount);
       
       res.json({ 
         message: `Successfully deleted ${deletedCount} transactions`,

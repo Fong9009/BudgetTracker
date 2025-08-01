@@ -132,7 +132,7 @@ export default function ArchivedTransactions() {
   const deleteAllMutation = useMutation({
     mutationFn: async () => {
       const transactionIds = archivedTransactions.map(transaction => transaction._id);
-      await apiRequest("DELETE", "/api/transactions/delete-all", { transactionIds });
+      await apiRequest("POST", "/api/transactions/delete-all", { transactionIds });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/transactions/archived"] });

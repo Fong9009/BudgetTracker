@@ -116,6 +116,26 @@ export default function Accounts() {
     },
   });
 
+  const sortedAccountTransactions = useMemo(() => {
+    return [...accountTransactions].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }, [accountTransactions]);
+
+  // Calculate running balances for the selected account's transactions
+  const transactionsWithRunningBalances = useMemo(() => {
+    if (!viewingAccountTransactions) return [];
+    
+    let currentBalance = viewingAccountTransactions.initialBalance || 0;
+    
+    return sortedAccountTransactions.map(transaction => {
+      if (transaction.type === 'income') {
+        currentBalance += transaction.amount;
+      } else {
+        currentBalance -= transaction.amount;
+      }
+      return { ...transaction, runningBalance: currentBalance };
+    });
+  }, [sortedAccountTransactions, viewingAccountTransactions]);
+
   const archiveMutation = useMutation({
     mutationFn: async (id: string) => {
       await apiRequest("DELETE", `/api/accounts/${id}`);
@@ -547,6 +567,7 @@ export default function Accounts() {
                       <table className="w-full">
                         <thead>
                           <tr className="border-b border-border">
+                            <th className="text-left p-3 text-sm font-medium text-muted-foreground w-12">#</th>
                             <th className="text-left p-3 text-sm font-medium text-muted-foreground">Date</th>
                             <th className="text-left p-3 text-sm font-medium text-muted-foreground">Transaction Details</th>
                             <th className="text-right p-3 text-sm font-medium text-muted-foreground">Money In</th>
@@ -555,83 +576,74 @@ export default function Accounts() {
                           </tr>
                         </thead>
                         <tbody>
-                          {(() => {
-                            let runningBalance = viewingAccountTransactions.balance || 0;
-                            return accountTransactions.map((transaction, index) => {
-                              const isIncome = transaction.type === 'income';
-                              const amount = transaction.amount;
-                              
-                              // Calculate running balance
-                              if (isIncome) {
-                                runningBalance += amount;
-                              } else {
-                                runningBalance -= amount;
-                              }
-                              
-                              return (
-                                <tr key={transaction._id} className="border-b border-border hover:bg-muted/50 transition-colors">
-                                  <td className="p-3 text-sm text-muted-foreground">
-                                    {format(new Date(transaction.date), 'dd/MM/yyyy')}
-                                  </td>
-                                  <td className="p-3">
-                                    <div className="space-y-1">
-                                      <div className="flex items-start gap-2">
-                                        <div
-                                          className="w-6 h-6 rounded flex items-center justify-center flex-shrink-0 mt-0.5"
-                                          style={{ backgroundColor: transaction.category.color, color: 'white' }}
-                                        >
-                                          <i className={`${transaction.category.icon} text-xs`} />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                          <p className="text-sm text-foreground">
-                                            {(() => {
-                                              const result = highlightTransactionPrefix(transaction.description);
-                                              return result.hasPrefix ? (
-                                                <>
-                                                  <span className={`${result.color} font-semibold px-1.5 py-0.5 rounded text-xs`}>
-                                                    {result.prefix}
-                                                  </span>
-                                                  {result.rest}
-                                                </>
-                                              ) : (
-                                                result.rest
-                                              );
-                                            })()}
-                                          </p>
-                                        </div>
+                          {transactionsWithRunningBalances.map((transaction, index) => {
+                            const isIncome = transaction.type === 'income';
+                            const amount = transaction.amount;
+                            
+                            return (
+                              <tr key={transaction._id} className="border-b border-border hover:bg-muted/50 transition-colors">
+                                <td className="p-3 text-sm text-muted-foreground">{index + 1}</td>
+                                <td className="p-3 text-sm text-muted-foreground">
+                                  {format(new Date(transaction.date), 'dd/MM/yyyy')}
+                                </td>
+                                <td className="p-3">
+                                  <div className="space-y-1">
+                                    <div className="flex items-start gap-2">
+                                      <div
+                                        className="w-6 h-6 rounded flex items-center justify-center flex-shrink-0 mt-0.5"
+                                        style={{ backgroundColor: transaction.category.color, color: 'white' }}
+                                      >
+                                        <i className={`${transaction.category.icon} text-xs`} />
                                       </div>
-                                      <p className="text-xs text-muted-foreground pl-8">
-                                        {transaction.category.name}
-                                      </p>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm text-foreground">
+                                          {(() => {
+                                            const result = highlightTransactionPrefix(transaction.description);
+                                            return result.hasPrefix ? (
+                                              <>
+                                                <span className={`${result.color} font-semibold px-1.5 py-0.5 rounded text-xs`}>
+                                                  {result.prefix}
+                                                </span>
+                                                {result.rest}
+                                              </>
+                                            ) : (
+                                              result.rest
+                                            );
+                                          })()}
+                                        </p>
+                                      </div>
                                     </div>
-                                  </td>
-                                  <td className="p-3 text-right">
-                                    {isIncome ? (
-                                      <span className="text-sm font-medium text-green-600">
-                                        {formatCurrency(amount)}
-                                      </span>
-                                    ) : (
-                                      <span className="text-sm text-muted-foreground">-</span>
-                                    )}
-                                  </td>
-                                  <td className="p-3 text-right">
-                                    {!isIncome ? (
-                                      <span className="text-sm font-medium text-red-600">
-                                        {formatCurrency(amount)}
-                                      </span>
-                                    ) : (
-                                      <span className="text-sm text-muted-foreground">-</span>
-                                    )}
-                                  </td>
-                                  <td className="p-3 text-right">
-                                    <span className="text-sm font-medium">
-                                      {formatCurrency(runningBalance)}
+                                    <p className="text-xs text-muted-foreground pl-8">
+                                      {transaction.category.name}
+                                    </p>
+                                  </div>
+                                </td>
+                                <td className="p-3 text-right">
+                                  {isIncome ? (
+                                    <span className="text-sm font-medium text-green-600">
+                                      {formatCurrency(amount)}
                                     </span>
-                                  </td>
-                                </tr>
-                              );
-                            });
-                          })()}
+                                  ) : (
+                                    <span className="text-sm text-muted-foreground">-</span>
+                                  )}
+                                </td>
+                                <td className="p-3 text-right">
+                                  {!isIncome ? (
+                                    <span className="text-sm font-medium text-red-600">
+                                      {formatCurrency(amount)}
+                                    </span>
+                                  ) : (
+                                    <span className="text-sm text-muted-foreground">-</span>
+                                  )}
+                                </td>
+                                <td className="p-3 text-right">
+                                  <span className="text-sm font-medium">
+                                    {formatCurrency(transaction.runningBalance)}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>

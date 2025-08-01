@@ -125,7 +125,7 @@ export default function ArchivedAccounts() {
   const deleteAllMutation = useMutation({
     mutationFn: async () => {
       const accountIds = archivedAccounts.map(account => account._id);
-      await apiRequest("DELETE", "/api/accounts/delete-all", { accountIds });
+      await apiRequest("POST", "/api/accounts/delete-all", { accountIds });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/accounts/archived"] });
