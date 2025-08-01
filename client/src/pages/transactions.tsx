@@ -345,24 +345,6 @@ export default function Transactions() {
             <div className="mt-4 flex md:mt-0 md:ml-4 space-x-2">
               <Button
                 variant="outline"
-                onClick={() => setLocation("/transactions/archived")}
-                className="flex items-center gap-2"
-              >
-                <Archive className="h-4 w-4" />
-                View Archive
-              </Button>
-              {groupedTransactions.length > 0 && (
-                <Button
-                  variant="outline"
-                  onClick={() => setArchiveAllTransactions(true)}
-                  className="flex items-center gap-2 text-orange-600 hover:text-orange-700"
-                >
-                  <Archive className="h-4 w-4" />
-                  Archive All ({groupedTransactions.length})
-                </Button>
-              )}
-              <Button
-                variant="outline"
                 onClick={() => setShowExportModal(true)}
                 className="flex items-center gap-2"
               >
@@ -900,7 +882,7 @@ export default function Transactions() {
                 <CardTitle>
                   All Transactions ({groupedTransactions.length})
                 </CardTitle>
-                {/* View Toggle and Sort Controls */}
+                {/* View Toggle, Sort Controls, and Archive Actions */}
                 <div className="flex items-center gap-2">
                   {/* View Toggle */}
                   <div className="flex items-center border rounded-md">
@@ -943,6 +925,30 @@ export default function Transactions() {
                   >
                     {sortOrder === 'asc' ? '↑' : '↓'}
                   </Button>
+                  
+                  {/* Archive Actions */}
+                  <div className="flex items-center gap-1 ml-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setLocation("/transactions/archived")}
+                      className="flex items-center gap-1"
+                    >
+                      <Archive className="h-3 w-3" />
+                      Archive
+                    </Button>
+                    {groupedTransactions.length > 0 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setArchiveAllTransactions(true)}
+                        className="flex items-center gap-1 text-orange-600 hover:text-orange-700"
+                      >
+                        <Archive className="h-3 w-3" />
+                        All ({groupedTransactions.length})
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
             </CardHeader>
@@ -1085,106 +1091,128 @@ export default function Transactions() {
                     <thead>
                       <tr className="border-b border-border">
                         <th className="text-left p-3 font-medium text-muted-foreground">Date</th>
-                        <th className="text-left p-3 font-medium text-muted-foreground">Description</th>
-                        <th className="text-left p-3 font-medium text-muted-foreground">Category</th>
-                        <th className="text-left p-3 font-medium text-muted-foreground">Account</th>
-                        <th className="text-right p-3 font-medium text-muted-foreground">Amount</th>
+                        <th className="text-left p-3 font-medium text-muted-foreground">Transaction Details</th>
+                        <th className="text-right p-3 font-medium text-muted-foreground">Money In</th>
+                        <th className="text-right p-3 font-medium text-muted-foreground">Money Out</th>
+                        <th className="text-right p-3 font-medium text-muted-foreground">Balance</th>
                         <th className="text-center p-3 font-medium text-muted-foreground">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {groupedTransactions.map((item) => (
-                        <tr key={item._id} className="border-b border-border hover:bg-muted/50 transition-colors">
-                          <td className="p-3 text-sm text-muted-foreground">
-                            {formatDateFull(item.date)}
-                          </td>
-                          <td className="p-3">
-                            <div className="flex items-center gap-2">
-                              <div
-                                className="w-8 h-8 rounded flex items-center justify-center"
-                                style={{ backgroundColor: item.category.color, color: 'white' }}
-                              >
-                                {item.type === 'transfer' ? (
-                                  <ArrowRightLeft className="h-4 w-4" />
-                                ) : (
-                                  <i className={`${item.category.icon} text-xs`} />
-                                )}
-                              </div>
-                              <div>
-                                <p className="text-sm font-medium text-foreground">
-                                  {(() => {
-                                    const result = item.type === 'transfer' 
-                                      ? highlightTransactionPrefix(`Transfer: ${item.description}`)
-                                      : highlightTransactionPrefix(item.description);
-                                    return result.hasPrefix ? (
-                                      <>
-                                        <span className={`${result.color} font-semibold px-1 py-0.5 rounded text-xs`}>
-                                          {result.prefix}
-                                        </span>
-                                        {result.rest}
-                                      </>
+                      {groupedTransactions.map((item, index) => {
+                        // Calculate running balance from the current transaction backwards
+                        const runningBalance = groupedTransactions
+                          .slice(0, index + 1)
+                          .reduce((balance, transaction) => {
+                            if (transaction.type === 'income') {
+                              return balance + transaction.amount;
+                            } else if (transaction.type === 'expense') {
+                              return balance - transaction.amount;
+                            } else if (transaction.type === 'transfer') {
+                              // For transfers, we need to determine if it's money in or out based on the account
+                              // For now, we'll treat it as neutral (no change to balance)
+                              return balance;
+                            }
+                            return balance;
+                          }, 0);
+                        
+                        return (
+                          <tr key={item._id} className="border-b border-border hover:bg-muted/50 transition-colors">
+                            <td className="p-3 text-sm text-muted-foreground">
+                              {format(item.date, 'dd/MM/yyyy')}
+                            </td>
+                            <td className="p-3">
+                              <div className="space-y-1">
+                                <div className="flex items-start gap-2">
+                                  <div
+                                    className="w-6 h-6 rounded flex items-center justify-center flex-shrink-0 mt-0.5"
+                                    style={{ backgroundColor: item.category.color, color: 'white' }}
+                                  >
+                                    {item.type === 'transfer' ? (
+                                      <ArrowRightLeft className="h-3 w-3" />
                                     ) : (
-                                      result.rest
-                                    );
-                                  })()}
+                                      <i className={`${item.category.icon} text-xs`} />
+                                    )}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm text-foreground">
+                                      {(() => {
+                                        const result = item.type === 'transfer' 
+                                          ? highlightTransactionPrefix(`Transfer: ${item.description}`)
+                                          : highlightTransactionPrefix(item.description);
+                                        return result.hasPrefix ? (
+                                          <>
+                                            <span className={`${result.color} font-semibold px-1.5 py-0.5 rounded text-xs`}>
+                                              {result.prefix}
+                                            </span>
+                                            {result.rest}
+                                          </>
+                                        ) : (
+                                          result.rest
+                                        );
+                                      })()}
+                                    </p>
+                                    {item.type === 'transfer' && (
+                                      <p className="text-xs text-muted-foreground">
+                                        {item.fromAccount!.name} → {item.toAccount!.name}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                                <p className="text-xs text-muted-foreground pl-8">
+                                  {item.category.name}
                                 </p>
-                                {item.type === 'transfer' && (
-                                  <p className="text-xs text-muted-foreground">
-                                    {item.fromAccount!.name} → {item.toAccount!.name}
-                                  </p>
-                                )}
                               </div>
-                            </div>
-                          </td>
-                          <td className="p-3">
-                            <Badge variant="outline" className="text-xs">
-                              {item.category.name}
-                            </Badge>
-                          </td>
-                          <td className="p-3 text-sm text-muted-foreground">
-                            {item.type === 'transfer' ? 'Transfer' : item.account.name}
-                          </td>
-                          <td className="p-3 text-right">
-                            <p className={`text-sm font-medium ${
-                              item.type === 'transfer' 
-                                ? 'text-foreground'
-                                : getTransactionTypeColor(item.type)
-                            }`}>
-                              {item.type === 'transfer' 
-                                ? formatCurrency(item.amount)
-                                : `${item.type === 'income' ? '+' : '-'}${formatCurrency(item.amount)}`
-                              }
-                            </p>
-                          </td>
-                          <td className="p-3">
-                            <div className="flex items-center justify-center gap-1">
-                              {item.type !== 'transfer' && (
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm"
-                                  onClick={() => {
-                                    setSelectedTransaction(item);
-                                    setShowEditTransaction(true);
-                                  }}
-                                >
-                                  <Edit2 className="h-3 w-3" />
-                                </Button>
-                              )}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setArchiveTransaction(
-                                  item.type === 'transfer' 
-                                    ? item.fromTransactionId! 
-                                    : item._id
+                            </td>
+                            <td className="p-3 text-right">
+                              <p className={`text-sm font-medium ${
+                                item.type === 'income' ? 'text-green-600' : 'text-muted-foreground'
+                              }`}>
+                                {item.type === 'income' ? formatCurrency(item.amount) : '-'}
+                              </p>
+                            </td>
+                            <td className="p-3 text-right">
+                              <p className={`text-sm font-medium ${
+                                item.type === 'expense' ? 'text-red-600' : 'text-muted-foreground'
+                              }`}>
+                                {item.type === 'expense' ? formatCurrency(item.amount) : '-'}
+                              </p>
+                            </td>
+                            <td className="p-3 text-right">
+                              <p className="text-sm font-medium text-foreground">
+                                {formatCurrency(runningBalance)}
+                              </p>
+                            </td>
+                            <td className="p-3">
+                              <div className="flex items-center justify-center gap-1">
+                                {item.type !== 'transfer' && (
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm"
+                                    onClick={() => {
+                                      setSelectedTransaction(item);
+                                      setShowEditTransaction(true);
+                                    }}
+                                  >
+                                    <Edit2 className="h-3 w-3" />
+                                  </Button>
                                 )}
-                              >
-                                <Archive className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setArchiveTransaction(
+                                    item.type === 'transfer' 
+                                      ? item.fromTransactionId! 
+                                      : item._id
+                                  )}
+                                >
+                                  <Archive className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

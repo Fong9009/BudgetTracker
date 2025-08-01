@@ -45,7 +45,6 @@ import type { Account } from "@shared/schema";
 const formSchema = z.object({
   name: z.string().min(1, "Account name is required"),
   type: z.enum(["checking", "savings", "credit"]),
-  balance: z.string().regex(/^\d+(\.\d{2})?$/, "Balance must be a valid decimal"),
   initialBalance: z.string().regex(/^\d+(\.\d{2})?$/, "Initial balance must be a valid decimal"),
 });
 
@@ -68,7 +67,6 @@ export function EditAccountModal({ open, onOpenChange, account }: EditAccountMod
     defaultValues: {
       name: "",
       type: "checking",
-      balance: "0.00",
       initialBalance: "0.00",
     },
   });
@@ -78,8 +76,7 @@ export function EditAccountModal({ open, onOpenChange, account }: EditAccountMod
       form.reset({
         name: account.name,
         type: account.type as "checking" | "savings" | "credit",
-        balance: String(account.balance),
-        initialBalance: String(account.initialBalance || account.balance),
+        initialBalance: String(account.initialBalance || 0),
       });
     }
   }, [account, form]);
@@ -196,28 +193,7 @@ export function EditAccountModal({ open, onOpenChange, account }: EditAccountMod
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="balance"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Current Balance</FormLabel>
-                  <FormControl>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">
-                        $
-                      </span>
-                      <Input
-                        placeholder="0.00"
-                        className="pl-7"
-                        {...field}
-                      />
-                    </div>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+
 
             <DialogFooter>
               <Button

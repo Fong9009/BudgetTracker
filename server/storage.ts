@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { UserModel, AccountModel, CategoryModel, TransactionModel, type User, type Account, type Category, type Transaction, type TransactionWithDetails, type RegisterUser, type InsertAccount, type InsertCategory, type InsertTransaction, type Transfer } from "@shared/schema";
 import { hashPassword } from "./auth";
 import { EncryptionService } from "./encryption";
@@ -18,7 +19,9 @@ export interface IStorage {
   deleteAccount(id: string): Promise<boolean>;
   getArchivedAccounts(userId: string): Promise<Account[]>;
   restoreAccount(id: string): Promise<boolean>;
+  restoreAllAccounts(accountIds: string[], userId: string): Promise<number>;
   permanentDeleteAccount(id: string): Promise<boolean>;
+  permanentDeleteAllAccounts(accountIds: string[], userId: string): Promise<number>;
 
   // Categories
   getCategories(userId: string): Promise<Category[]>;
@@ -29,7 +32,9 @@ export interface IStorage {
   deleteCategory(id: string): Promise<boolean>;
   getArchivedCategories(userId: string): Promise<Category[]>;
   restoreCategory(id: string): Promise<boolean>;
+  restoreAllCategories(categoryIds: string[], userId: string): Promise<number>;
   permanentDeleteCategory(id: string): Promise<boolean>;
+  permanentDeleteAllCategories(categoryIds: string[], userId: string): Promise<number>;
 
   // Transactions
   getTransactions(userId: string): Promise<TransactionWithDetails[]>;
@@ -71,6 +76,7 @@ export interface IStorage {
   archiveTransactions(transactionIds: string[], userId: string): Promise<number>;
   restoreTransactions(transactionIds: string[], userId: string): Promise<number>;
   permanentDeleteTransaction(id: string): Promise<boolean>;
+  permanentDeleteTransactions(transactionIds: string[], userId: string): Promise<number>;
 
   // Transfers
   createTransfer(transfer: Transfer, userId: string): Promise<{ fromTransaction: TransactionWithDetails; toTransaction: TransactionWithDetails }>;
@@ -195,7 +201,7 @@ export class MongoDBStorage implements IStorage {
   async createAccount(insertAccount: InsertAccount, userId: string): Promise<Account> {
     const accountData = {
       ...insertAccount,
-      balance: parseFloat(insertAccount.balance),
+      balance: insertAccount.balance ? parseFloat(insertAccount.balance) : parseFloat(insertAccount.initialBalance),
       initialBalance: parseFloat(insertAccount.initialBalance),
       userId
     };
@@ -254,6 +260,44 @@ export class MongoDBStorage implements IStorage {
       return !!result;
     } catch (error) {
       console.error("Error permanently deleting account:", error);
+      throw error;
+    }
+  }
+
+  async restoreAllAccounts(accountIds: string[], userId: string): Promise<number> {
+    try {
+      const result = await AccountModel.updateMany(
+        { _id: { $in: accountIds }, userId: userId, isArchived: true },
+        { $set: { isArchived: false } }
+      );
+      return result.modifiedCount;
+    } catch (error) {
+      console.error("Error restoring all accounts:", error);
+      throw error;
+    }
+  }
+
+  async permanentDeleteAllAccounts(accountIds: string[], userId: string): Promise<number> {
+    try {
+      // Check if any accounts are being used by transactions
+      const accountsWithTransactions = await TransactionModel.aggregate([
+        { $match: { accountId: { $in: accountIds.map(id => new mongoose.Types.ObjectId(id)) } } },
+        { $group: { _id: "$accountId", count: { $sum: 1 } } }
+      ]);
+
+      if (accountsWithTransactions.length > 0) {
+        const accountIdsWithTransactions = accountsWithTransactions.map(item => item._id.toString());
+        throw new Error(`Cannot permanently delete accounts: Some accounts have associated transactions. Please permanently delete all associated transactions first.`);
+      }
+
+      const result = await AccountModel.deleteMany({
+        _id: { $in: accountIds },
+        userId: userId,
+        isArchived: true
+      });
+      return result.deletedCount;
+    } catch (error) {
+      console.error("Error permanently deleting all accounts:", error);
       throw error;
     }
   }
@@ -381,6 +425,43 @@ export class MongoDBStorage implements IStorage {
       return !!result;
     } catch (error) {
       console.error("Error permanently deleting category:", error);
+      throw error;
+    }
+  }
+
+  async restoreAllCategories(categoryIds: string[], userId: string): Promise<number> {
+    try {
+      const result = await CategoryModel.updateMany(
+        { _id: { $in: categoryIds }, userId: userId, isArchived: true },
+        { $set: { isArchived: false } }
+      );
+      return result.modifiedCount;
+    } catch (error) {
+      console.error("Error restoring all categories:", error);
+      throw error;
+    }
+  }
+
+  async permanentDeleteAllCategories(categoryIds: string[], userId: string): Promise<number> {
+    try {
+      // Check if any categories are being used by transactions
+      const categoriesWithTransactions = await TransactionModel.aggregate([
+        { $match: { categoryId: { $in: categoryIds.map(id => new mongoose.Types.ObjectId(id)) } } },
+        { $group: { _id: "$categoryId", count: { $sum: 1 } } }
+      ]);
+
+      if (categoriesWithTransactions.length > 0) {
+        throw new Error(`Cannot permanently delete categories: Some categories have associated transactions. Please permanently delete all associated transactions first.`);
+      }
+
+      const result = await CategoryModel.deleteMany({
+        _id: { $in: categoryIds },
+        userId: userId,
+        isArchived: true
+      });
+      return result.deletedCount;
+    } catch (error) {
+      console.error("Error permanently deleting all categories:", error);
       throw error;
     }
   }
@@ -1080,6 +1161,103 @@ export class MongoDBStorage implements IStorage {
     }
   }
 
+  async permanentDeleteTransactions(transactionIds: string[], userId: string): Promise<number> {
+    const session = await TransactionModel.startSession();
+    
+    try {
+      let totalDeletedCount = 0;
+      
+      await session.withTransaction(async () => {
+        // Verify all transactions belong to the user and are archived
+        const transactions = await TransactionModel.find({
+          _id: { $in: transactionIds },
+          userId: userId,
+          isArchived: true
+        }).session(session);
+
+        if (transactions.length !== transactionIds.length) {
+          throw new Error("Some transactions not found or not accessible");
+        }
+
+        // Delete each transaction permanently
+        for (const transaction of transactions) {
+          const isTransfer = transaction.description.startsWith('Transfer to ') || 
+                            transaction.description.startsWith('Transfer from ');
+          
+          if (isTransfer) {
+            // For transfers, we need to delete both transactions
+            const amount = transaction.amount;
+            const isFromTransaction = transaction.description.startsWith('Transfer to ');
+            
+            if (isFromTransaction) {
+              // This is the "from" transaction (expense)
+              // Find the corresponding "to" transaction (income)
+              const transferInfo = transaction.description.match(/^Transfer to ([^:]+): (.+)$/);
+              if (transferInfo) {
+                const [, toAccountName, userDescription] = transferInfo;
+                const toTransaction = await TransactionModel.findOne({
+                  amount: amount,
+                  type: 'income',
+                  description: { $regex: `^Transfer from .+: ${userDescription.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$` },
+                  date: transaction.date,
+                  userId: userId,
+                  isArchived: true
+                }).session(session);
+                
+                if (toTransaction) {
+                  // Delete both transactions permanently
+                  await TransactionModel.findByIdAndDelete(transaction._id).session(session);
+                  await TransactionModel.findByIdAndDelete(toTransaction._id).session(session);
+                  totalDeletedCount += 2;
+                } else {
+                  // Only delete this transaction if we can't find the pair
+                  await TransactionModel.findByIdAndDelete(transaction._id).session(session);
+                  totalDeletedCount += 1;
+                }
+              }
+            } else {
+              // This is the "to" transaction (income)
+              // Find the corresponding "from" transaction (expense)
+              const transferInfo = transaction.description.match(/^Transfer from ([^:]+): (.+)$/);
+              if (transferInfo) {
+                const [, fromAccountName, userDescription] = transferInfo;
+                const fromTransaction = await TransactionModel.findOne({
+                  amount: amount,
+                  type: 'expense',
+                  description: { $regex: `^Transfer to .+: ${userDescription.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$` },
+                  date: transaction.date,
+                  userId: userId,
+                  isArchived: true
+                }).session(session);
+                
+                if (fromTransaction) {
+                  // Delete both transactions permanently
+                  await TransactionModel.findByIdAndDelete(transaction._id).session(session);
+                  await TransactionModel.findByIdAndDelete(fromTransaction._id).session(session);
+                  totalDeletedCount += 2;
+                } else {
+                  // Only delete this transaction if we can't find the pair
+                  await TransactionModel.findByIdAndDelete(transaction._id).session(session);
+                  totalDeletedCount += 1;
+                }
+              }
+            }
+          } else {
+            // Regular transaction - just delete it permanently
+            await TransactionModel.findByIdAndDelete(transaction._id).session(session);
+            totalDeletedCount += 1;
+          }
+        }
+      });
+      
+      return totalDeletedCount;
+    } catch (error) {
+      throw error;
+    } finally {
+      await session.endSession();
+    }
+  }
+
   // Helper methods to transform MongoDB documents to our interface types
   private transformUser(doc: any): User {
     // Decrypt sensitive fields if they're encrypted
@@ -1101,7 +1279,7 @@ export class MongoDBStorage implements IStorage {
       name: doc.name,
       type: doc.type,
       balance: doc.balance,
-      initialBalance: doc.initialBalance || doc.balance, // Fallback to balance for existing accounts
+      initialBalance: doc.initialBalance || 0, // Use 0 as fallback, never use balance
       userId: doc.userId.toString(),
       isArchived: doc.isArchived || false,
       createdAt: doc.createdAt,

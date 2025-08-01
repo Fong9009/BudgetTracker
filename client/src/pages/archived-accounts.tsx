@@ -22,6 +22,8 @@ import { getValidToken } from "@/lib/queryClient";
 
 export default function ArchivedAccounts() {
   const [restoreAccount, setRestoreAccount] = useState<string | null>(null);
+  const [restoreAllAccounts, setRestoreAllAccounts] = useState(false);
+  const [deleteAllAccounts, setDeleteAllAccounts] = useState(false);
   const [permanentDeleteAccount, setPermanentDeleteAccount] = useState<string | null>(null);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -95,12 +97,69 @@ export default function ArchivedAccounts() {
     },
   });
 
+  const restoreAllMutation = useMutation({
+    mutationFn: async () => {
+      const accountIds = archivedAccounts.map(account => account._id);
+      await apiRequest("POST", "/api/accounts/restore-all", { accountIds });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/accounts/archived"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/analytics"] });
+      toast({
+        title: "Success",
+        description: `All ${archivedAccounts.length} accounts restored successfully`,
+        variant: "success",
+      });
+      setRestoreAllAccounts(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to restore all accounts",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteAllMutation = useMutation({
+    mutationFn: async () => {
+      const accountIds = archivedAccounts.map(account => account._id);
+      await apiRequest("DELETE", "/api/accounts/delete-all", { accountIds });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/accounts/archived"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/analytics"] });
+      toast({
+        title: "Success",
+        description: `All ${archivedAccounts.length} accounts permanently deleted`,
+        variant: "success",
+      });
+      setDeleteAllAccounts(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete all accounts",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleRestore = (id: string) => {
     restoreMutation.mutate(id);
   };
 
   const handlePermanentDelete = (id: string) => {
     permanentDeleteMutation.mutate(id);
+  };
+
+  const handleRestoreAll = () => {
+    restoreAllMutation.mutate();
+  };
+
+  const handleDeleteAll = () => {
+    deleteAllMutation.mutate();
   };
 
   return (
@@ -128,6 +187,26 @@ export default function ArchivedAccounts() {
                 </p>
               </div>
             </div>
+            {archivedAccounts.length > 0 && (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setRestoreAllAccounts(true)}
+                  className="flex items-center gap-2 text-green-600 hover:text-green-700"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  Restore All ({archivedAccounts.length})
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setDeleteAllAccounts(true)}
+                  className="flex items-center gap-2 text-red-600 hover:text-red-700"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete All ({archivedAccounts.length})
+                </Button>
+              </div>
+            )}
           </div>
 
           {/* Archived Accounts Grid */}
@@ -264,6 +343,51 @@ export default function ArchivedAccounts() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {permanentDeleteMutation.isPending ? "Deleting..." : "Permanently Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Restore All Confirmation Dialog */}
+      <AlertDialog open={restoreAllAccounts} onOpenChange={setRestoreAllAccounts}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Restore all accounts?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will restore all {archivedAccounts.length} archived accounts. 
+              They will be moved back to your active accounts.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleRestoreAll}
+              className="bg-green-600 text-white hover:bg-green-700"
+            >
+              {restoreAllMutation.isPending ? "Restoring..." : "Restore All"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete All Confirmation Dialog */}
+      <AlertDialog open={deleteAllAccounts} onOpenChange={setDeleteAllAccounts}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Permanently delete all accounts?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete all {archivedAccounts.length} archived accounts. 
+              This action cannot be undone and the data will be lost forever.
+              Note: You cannot delete accounts that have associated transactions.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteAll}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteAllMutation.isPending ? "Deleting..." : "Delete All"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

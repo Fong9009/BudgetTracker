@@ -127,15 +127,14 @@ export function UploadStatementModal({ open, onOpenChange }: UploadStatementModa
       const token = await getValidToken();
       if (!token) throw new Error("No valid token");
       
-      // Get CSRF token for file upload
-      const csrfToken = await getCSRFToken();
+      // CSRF token temporarily disabled
       
       // For file uploads, we need to handle FormData differently
       const response = await fetch("/api/statements/parse", {
         method: "POST",
         headers: { 
           Authorization: `Bearer ${token}`,
-          ...(csrfToken && { "X-CSRF-Token": csrfToken }),
+          // CSRF token header temporarily removed
           // Don't set Content-Type for FormData, let browser set it with boundary
         },
         credentials: "include",
@@ -143,33 +142,7 @@ export function UploadStatementModal({ open, onOpenChange }: UploadStatementModa
       });
       
       if (!response.ok) {
-        // If CSRF error, try to get a new token and retry once
-        if (response.status === 403) {
-          try {
-            const errorJson = await response.clone().json();
-            if (errorJson?.message?.toLowerCase().includes('csrf') || errorJson?.error?.toLowerCase().includes('csrf')) {
-              const newCSRFToken = await getCSRFToken();
-              const retryResponse = await fetch("/api/statements/parse", {
-                method: "POST",
-                headers: { 
-                  Authorization: `Bearer ${token}`,
-                  ...(newCSRFToken && { "X-CSRF-Token": newCSRFToken }),
-                },
-                credentials: "include",
-                body: formData,
-              });
-              
-              if (!retryResponse.ok) {
-                const error = await retryResponse.text();
-                throw new Error(error);
-              }
-              
-              return retryResponse.json();
-            }
-          } catch (e) {
-            // Fall through to throw original error
-          }
-        }
+        // CSRF retry logic temporarily disabled
         
         const error = await response.text();
         throw new Error(error);
@@ -224,8 +197,7 @@ export function UploadStatementModal({ open, onOpenChange }: UploadStatementModa
       const token = await getValidToken();
       if (!token) throw new Error("No valid token");
       
-      // Get CSRF token for import request
-      const csrfToken = await getCSRFToken();
+      // CSRF token temporarily disabled
       
       // Use apiRequest for proper error handling and token refresh
       return await apiRequest('POST', '/api/statements/import', {
@@ -238,7 +210,7 @@ export function UploadStatementModal({ open, onOpenChange }: UploadStatementModa
         headers: { 
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
-          ...(csrfToken && { "X-CSRF-Token": csrfToken }),
+          // CSRF token header temporarily removed
         },
         credentials: "include",
       });

@@ -36,7 +36,6 @@ const formSchema = z.object({
   type: z.enum(["checking", "savings", "credit"], {
     required_error: "Please select an account type",
   }),
-  balance: z.string().regex(/^\d+(\.\d{2})?$/, "Balance must be a valid decimal"),
   initialBalance: z.string().regex(/^\d+(\.\d{2})?$/, "Initial balance must be a valid decimal"),
 });
 
@@ -56,17 +55,16 @@ export function AddAccountModal({ open, onOpenChange }: AddAccountModalProps) {
     defaultValues: {
       name: "",
       type: "checking",
-      balance: "0.00",
       initialBalance: "0.00",
     },
   });
 
   const createMutation = useMutation({
     mutationFn: async (data: FormData) => {
-      // Convert string balance to number for optimistic update
+      // Convert string initialBalance to number for optimistic update
       const accountData = {
         ...data,
-        balance: parseFloat(data.balance),
+        balance: parseFloat(data.initialBalance), // Set initial balance as current balance
         initialBalance: parseFloat(data.initialBalance),
         isArchived: false,
       };
@@ -184,24 +182,7 @@ export function AddAccountModal({ open, onOpenChange }: AddAccountModalProps) {
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="balance"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Current Balance</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      placeholder="0.00"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+
 
             <DialogFooter>
               <Button

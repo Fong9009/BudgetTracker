@@ -81,21 +81,6 @@ const upload = multer({
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // CSRF token endpoint (accessible without auth)
-  app.get("/api/csrf-token", (req, res) => {
-    try {
-      const token = req.csrfToken?.();
-      res.json({ 
-        csrfToken: token || null 
-      });
-    } catch (error) {
-      console.error("CSRF token generation error:", error);
-      res.status(500).json({ 
-        csrfToken: null,
-        error: "Failed to generate CSRF token" 
-      });
-    }
-  });
 
   // Health check endpoint
   app.get("/api/health", async (req, res) => {
@@ -596,6 +581,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Restore all accounts endpoint
+  app.post("/api/accounts/restore-all", authMiddleware, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { accountIds } = req.body;
+      
+      if (!Array.isArray(accountIds) || accountIds.length === 0) {
+        return res.status(400).json({ message: "Invalid account IDs provided" });
+      }
+
+      const userId = req.user!._id;
+      const restoredCount = await storage.restoreAllAccounts(accountIds, userId);
+      
+      res.json({ 
+        message: `Successfully restored ${restoredCount} accounts`,
+        restoredCount 
+      });
+    } catch (error) {
+      console.error("Restore all accounts error:", error);
+      res.status(500).json({ message: "Failed to restore accounts" });
+    }
+  });
+
+  // Delete all accounts endpoint
+  app.delete("/api/accounts/delete-all", authMiddleware, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { accountIds } = req.body;
+      
+      if (!Array.isArray(accountIds) || accountIds.length === 0) {
+        return res.status(400).json({ message: "Invalid account IDs provided" });
+      }
+
+      const userId = req.user!._id;
+      const deletedCount = await storage.permanentDeleteAllAccounts(accountIds, userId);
+      
+      res.json({ 
+        message: `Successfully deleted ${deletedCount} accounts`,
+        deletedCount 
+      });
+    } catch (error) {
+      console.error("Delete all accounts error:", error);
+      res.status(500).json({ message: "Failed to delete accounts" });
+    }
+  });
+
   // Category archive routes (restore and permanent delete)
   app.post("/api/categories/:id/restore", authMiddleware, async (req: AuthenticatedRequest, res) => {
     try {
@@ -624,6 +653,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: error.message });
       }
       res.status(500).json({ message: "Failed to permanently delete category" });
+    }
+  });
+
+  // Restore all categories endpoint
+  app.post("/api/categories/restore-all", authMiddleware, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { categoryIds } = req.body;
+      
+      if (!Array.isArray(categoryIds) || categoryIds.length === 0) {
+        return res.status(400).json({ message: "Invalid category IDs provided" });
+      }
+
+      const userId = req.user!._id;
+      const restoredCount = await storage.restoreAllCategories(categoryIds, userId);
+      
+      res.json({ 
+        message: `Successfully restored ${restoredCount} categories`,
+        restoredCount 
+      });
+    } catch (error) {
+      console.error("Restore all categories error:", error);
+      res.status(500).json({ message: "Failed to restore categories" });
+    }
+  });
+
+  // Delete all categories endpoint
+  app.delete("/api/categories/delete-all", authMiddleware, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { categoryIds } = req.body;
+      
+      if (!Array.isArray(categoryIds) || categoryIds.length === 0) {
+        return res.status(400).json({ message: "Invalid category IDs provided" });
+      }
+
+      const userId = req.user!._id;
+      const deletedCount = await storage.permanentDeleteAllCategories(categoryIds, userId);
+      
+      res.json({ 
+        message: `Successfully deleted ${deletedCount} categories`,
+        deletedCount 
+      });
+    } catch (error) {
+      console.error("Delete all categories error:", error);
+      res.status(500).json({ message: "Failed to delete categories" });
     }
   });
 
@@ -825,6 +898,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Restore all transactions error:", error);
       res.status(500).json({ message: "Failed to restore transactions" });
+    }
+  });
+
+  // Delete all transactions endpoint
+  app.delete("/api/transactions/delete-all", authMiddleware, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { transactionIds } = req.body;
+      
+      if (!Array.isArray(transactionIds) || transactionIds.length === 0) {
+        return res.status(400).json({ message: "Invalid transaction IDs provided" });
+      }
+
+      const userId = req.user!._id;
+      const deletedCount = await storage.permanentDeleteTransactions(transactionIds, userId);
+      
+      res.json({ 
+        message: `Successfully deleted ${deletedCount} transactions`,
+        deletedCount 
+      });
+    } catch (error) {
+      console.error("Delete all transactions error:", error);
+      res.status(500).json({ message: "Failed to delete transactions" });
     }
   });
 

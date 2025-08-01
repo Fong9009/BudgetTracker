@@ -23,6 +23,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { getValidToken } from "@/lib/queryClient";
 import { Plus, Edit2, Trash2, ArrowRightLeft, Archive, X, Receipt, List, Table } from "lucide-react";
 import { useLocation } from "wouter";
+import { format } from "date-fns";
 import type { Account, TransactionWithDetails } from "@shared/schema";
 
 export default function Accounts() {
@@ -192,6 +193,14 @@ export default function Accounts() {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <Button
+                variant="outline"
+                onClick={() => setLocation("/accounts/archived")}
+                className="flex items-center gap-2"
+              >
+                <Archive className="h-4 w-4" />
+                View Archive
+              </Button>
+              <Button
                 onClick={() => setShowTransferModal(true)}
                 variant="outline"
                 className="border-dashed"
@@ -296,58 +305,56 @@ export default function Accounts() {
                         </div>
                       </div>
                       
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-muted-foreground">Current Balance</span>
-                        </div>
-                        <p className={`text-2xl font-bold ${
-                          account.balance >= 0 ? 'text-foreground' : 'text-red-600'
-                        }`}>
-                          ${account.balance.toFixed(2)}
-                        </p>
-                      </div>
-
                       {/* Financial Summary */}
                       {(() => {
                         const accountTransactions = allTransactions.filter(t => t.accountId === account._id);
                         const summary = calculateAccountFinancialSummary(account, accountTransactions);
                         return (
-                          <div className="mt-3 p-3 bg-muted/30 rounded-lg">
-                            <div className="grid grid-cols-2 gap-2 text-xs">
-                              <div>
-                                <p className="text-muted-foreground">Initial Balance</p>
-                                <p className="font-medium">{formatCurrency(summary.initialBalance)}</p>
+                          <>
+                            <div className="space-y-2">
+                              <div className="flex justify-between items-center">
+                                <span className="text-sm text-muted-foreground">Current Balance</span>
                               </div>
-                              <div>
-                                <p className="text-muted-foreground">Current Balance</p>
-                                <p className="font-medium">{formatCurrency(summary.currentBalance)}</p>
-                              </div>
-                              <div>
-                                <p className="text-muted-foreground">Income</p>
-                                <p className="font-medium text-green-600">+{formatCurrency(summary.totalIncome)}</p>
-                              </div>
-                              <div>
-                                <p className="text-muted-foreground">Expense</p>
-                                <p className="font-medium text-red-600">-{formatCurrency(summary.totalExpense)}</p>
-                              </div>
-                              <div className="col-span-2">
-                                <p className="text-muted-foreground">Net Change</p>
-                                <p className={`font-medium ${summary.netChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                  {summary.netChange >= 0 ? '+' : ''}{formatCurrency(summary.netChange)}
-                                </p>
+                              <p className={`text-2xl font-bold ${
+                                summary.currentBalance >= 0 ? 'text-foreground' : 'text-red-600'
+                              }`}>
+                                {formatCurrency(summary.currentBalance)}
+                              </p>
+                            </div>
+
+                            <div className="mt-3 p-3 bg-muted/30 rounded-lg">
+                              <div className="grid grid-cols-2 gap-2 text-xs">
+                                <div>
+                                  <p className="text-muted-foreground">Initial Balance</p>
+                                  <p className="font-medium">{formatCurrency(summary.initialBalance)}</p>
+                                </div>
+                                <div>
+                                  <p className="text-muted-foreground">Income</p>
+                                  <p className="font-medium text-green-600">+{formatCurrency(summary.totalIncome)}</p>
+                                </div>
+                                <div>
+                                  <p className="text-muted-foreground">Expense</p>
+                                  <p className="font-medium text-red-600">-{formatCurrency(summary.totalExpense)}</p>
+                                </div>
+                                <div>
+                                  <p className="text-muted-foreground">Net Change</p>
+                                  <p className={`font-medium ${summary.netChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                    {summary.netChange >= 0 ? '+' : ''}{formatCurrency(summary.netChange)}
+                                  </p>
+                                </div>
                               </div>
                             </div>
-                          </div>
+
+                            {account.type === 'credit' && summary.currentBalance < 0 && (
+                              <div className="mt-4 p-3 bg-orange-50 dark:bg-orange-950/20 rounded-lg">
+                                <p className="text-xs text-orange-700 dark:text-orange-400">
+                                  Outstanding balance on credit card
+                                </p>
+                              </div>
+                            )}
+                          </>
                         );
                       })()}
-
-                      {account.type === 'credit' && account.balance < 0 && (
-                        <div className="mt-4 p-3 bg-orange-50 dark:bg-orange-950/20 rounded-lg">
-                          <p className="text-xs text-orange-700 dark:text-orange-400">
-                            Outstanding balance on credit card
-                          </p>
-                        </div>
-                      )}
 
                       <div className="mt-4 pt-4 border-t border-border space-y-3">
                         <Button
@@ -564,36 +571,38 @@ export default function Accounts() {
                               return (
                                 <tr key={transaction._id} className="border-b border-border hover:bg-muted/50 transition-colors">
                                   <td className="p-3 text-sm text-muted-foreground">
-                                    {new Date(transaction.date).toLocaleDateString()}
+                                    {format(new Date(transaction.date), 'dd/MM/yyyy')}
                                   </td>
                                   <td className="p-3">
-                                    <div className="flex items-center gap-3">
-                                      <div
-                                        className="w-8 h-8 rounded-lg flex items-center justify-center"
-                                        style={{ backgroundColor: transaction.category.color, color: 'white' }}
-                                      >
-                                        <i className={`${transaction.category.icon} text-xs`} />
+                                    <div className="space-y-1">
+                                      <div className="flex items-start gap-2">
+                                        <div
+                                          className="w-6 h-6 rounded flex items-center justify-center flex-shrink-0 mt-0.5"
+                                          style={{ backgroundColor: transaction.category.color, color: 'white' }}
+                                        >
+                                          <i className={`${transaction.category.icon} text-xs`} />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                          <p className="text-sm text-foreground">
+                                            {(() => {
+                                              const result = highlightTransactionPrefix(transaction.description);
+                                              return result.hasPrefix ? (
+                                                <>
+                                                  <span className={`${result.color} font-semibold px-1.5 py-0.5 rounded text-xs`}>
+                                                    {result.prefix}
+                                                  </span>
+                                                  {result.rest}
+                                                </>
+                                              ) : (
+                                                result.rest
+                                              );
+                                            })()}
+                                          </p>
+                                        </div>
                                       </div>
-                                      <div>
-                                        <p className="text-sm font-medium text-foreground">
-                                          {(() => {
-                                            const result = highlightTransactionPrefix(transaction.description);
-                                            return result.hasPrefix ? (
-                                              <>
-                                                <span className={`${result.color} font-semibold px-1 py-0.5 rounded text-xs`}>
-                                                  {result.prefix}
-                                                </span>
-                                                {result.rest}
-                                              </>
-                                            ) : (
-                                              result.rest
-                                            );
-                                          })()}
-                                        </p>
-                                        <p className="text-xs text-muted-foreground">
-                                          {transaction.category.name}
-                                        </p>
-                                      </div>
+                                      <p className="text-xs text-muted-foreground pl-8">
+                                        {transaction.category.name}
+                                      </p>
                                     </div>
                                   </td>
                                   <td className="p-3 text-right">

@@ -41,6 +41,13 @@ export function Sidebar() {
         await Promise.all(cacheNames.map(name => caches.delete(name)));
       }
       
+      // Clear any stored CSRF tokens or auth data
+      if (typeof window !== 'undefined') {
+        // Clear any localStorage/sessionStorage that might contain stale tokens
+        sessionStorage.clear();
+        // Note: We don't clear localStorage as it might contain user preferences
+      }
+      
       // Force reload by changing the URL slightly and then reloading
       const currentUrl = window.location.href;
       const separator = currentUrl.includes('?') ? '&' : '?';

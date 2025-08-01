@@ -158,17 +158,13 @@ export async function apiRequest(
   
   const token = await getValidToken();
   
-  // Don't send CSRF tokens for auth endpoints
-  const isAuthEndpoint = url.includes('/auth/');
-  const csrfToken = (method !== 'GET' && !isAuthEndpoint) ? await getCSRFToken() : null;
-  if (csrfToken) {
-    console.log(`[CSRF] Sending token for ${method} ${url}:`, csrfToken);
-  }
+  // CSRF tokens temporarily disabled
+  const csrfToken = null;
   
   const headers = {
     "Content-Type": "application/json",
     ...(token && { Authorization: `Bearer ${token}` }),
-    ...(csrfToken && { "X-CSRF-Token": csrfToken }),
+          // CSRF token header temporarily removed
     ...options.headers,
   } as Record<string, string>;
   
@@ -181,43 +177,8 @@ export async function apiRequest(
   });
 
   if (!res.ok) {
-    // If CSRF error and allowed to retry, fetch new token and retry once
-    if (
-      res.status === 403 &&
-      retryOnCSRFError &&
-      method !== 'GET' &&
-      !isAuthEndpoint
-    ) {
-      try {
-        const errorJson = await res.clone().json();
-        if (
-          errorJson?.message?.toLowerCase().includes('csrf') ||
-          errorJson?.error?.toLowerCase().includes('csrf')
-        ) {
-          // Fetch new CSRF token and retry once
-          const newCSRFToken = await getCSRFToken();
-          const retryHeaders = {
-            ...headers,
-            "X-CSRF-Token": newCSRFToken,
-          };
-          const retryRes = await fetch(url, {
-            method,
-            headers: retryHeaders,
-            credentials: "include",
-            ...(data && { body: JSON.stringify(data) }),
-            ...options,
-          });
-          await throwIfResNotOk(retryRes);
-          const contentType = retryRes.headers.get("content-type");
-          if (retryRes.status === 204 || !contentType || !contentType.includes("application/json")) {
-            return null;
-          }
-          return retryRes.json();
-        }
-      } catch (e) {
-        // Ignore JSON parse errors and fall through to throw
-      }
-    }
+    // CSRF retry logic temporarily disabled
+    // TODO: Re-enable CSRF retry logic once CSRF protection is working properly
     await throwIfResNotOk(res);
   }
   

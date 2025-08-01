@@ -62,7 +62,7 @@ export const loginUserSchema = z.object({
 export const insertAccountSchema = z.object({
   name: z.string().min(1),
   type: z.string().min(1),
-  balance: z.string().regex(/^\d+(\.\d{2})?$/, "Balance must be a valid decimal with 2 decimal places"),
+  balance: z.string().regex(/^\d+(\.\d{2})?$/, "Balance must be a valid decimal with 2 decimal places").optional(),
   initialBalance: z.string().regex(/^\d+(\.\d{2})?$/, "Initial balance must be a valid decimal with 2 decimal places"),
 });
 

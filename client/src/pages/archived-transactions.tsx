@@ -16,7 +16,7 @@ import {
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { formatCurrency, formatDateFull, getTransactionTypeColor, groupTransferTransactions, highlightTransactionPrefix, type TransactionOrTransfer } from "@/lib/utils";
-import { RotateCcw, Trash2, ArrowLeft, ArrowRightLeft } from "lucide-react";
+import { RotateCcw, Trash2, ArrowLeft, ArrowRightLeft, List, Table } from "lucide-react";
 import { useLocation } from "wouter";
 import type { TransactionWithDetails } from "@shared/schema";
 import { getValidToken } from "@/lib/queryClient";
@@ -24,7 +24,9 @@ import { getValidToken } from "@/lib/queryClient";
 export default function ArchivedTransactions() {
   const [restoreTransaction, setRestoreTransaction] = useState<string | null>(null);
   const [restoreAllTransactions, setRestoreAllTransactions] = useState(false);
+  const [deleteAllTransactions, setDeleteAllTransactions] = useState(false);
   const [permanentDeleteTransaction, setPermanentDeleteTransaction] = useState<string | null>(null);
+  const [transactionViewMode, setTransactionViewMode] = useState<'list' | 'table'>('table');
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -127,6 +129,30 @@ export default function ArchivedTransactions() {
     },
   });
 
+  const deleteAllMutation = useMutation({
+    mutationFn: async () => {
+      const transactionIds = archivedTransactions.map(transaction => transaction._id);
+      await apiRequest("DELETE", "/api/transactions/delete-all", { transactionIds });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/transactions/archived"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/analytics"] });
+      toast({
+        title: "Success",
+        description: `All ${archivedTransactions.length} transactions permanently deleted`,
+        variant: "success",
+      });
+      setDeleteAllTransactions(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete all transactions",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleRestore = (id: string) => {
     restoreMutation.mutate(id);
   };
@@ -137,6 +163,10 @@ export default function ArchivedTransactions() {
 
   const handlePermanentDelete = (id: string) => {
     permanentDeleteMutation.mutate(id);
+  };
+
+  const handleDeleteAll = () => {
+    deleteAllMutation.mutate();
   };
 
   // Group transfers for display
@@ -167,16 +197,48 @@ export default function ArchivedTransactions() {
                 </p>
               </div>
             </div>
-            {groupedTransactions.length > 0 && (
-              <Button
-                variant="outline"
-                onClick={() => setRestoreAllTransactions(true)}
-                className="flex items-center gap-2 text-green-600 hover:text-green-700"
-              >
-                <RotateCcw className="h-4 w-4" />
-                Restore All ({groupedTransactions.length})
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {/* View Toggle */}
+              <div className="flex items-center border rounded-md">
+                <Button
+                  variant={transactionViewMode === 'list' ? 'default' : 'ghost'}
+                  size="sm"
+                  className="rounded-r-none"
+                  onClick={() => setTransactionViewMode('list')}
+                >
+                  <List className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={transactionViewMode === 'table' ? 'default' : 'ghost'}
+                  size="sm"
+                  className="rounded-l-none"
+                  onClick={() => setTransactionViewMode('table')}
+                >
+                  <Table className="h-4 w-4" />
+                </Button>
+              </div>
+              
+              {groupedTransactions.length > 0 && (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => setRestoreAllTransactions(true)}
+                    className="flex items-center gap-2 text-green-600 hover:text-green-700"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    Restore All ({groupedTransactions.length})
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setDeleteAllTransactions(true)}
+                    className="flex items-center gap-2 text-red-600 hover:text-red-700"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete All ({groupedTransactions.length})
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
 
           {/* Archived Transactions List */}
@@ -217,7 +279,7 @@ export default function ArchivedTransactions() {
                   </p>
                 </CardContent>
               </Card>
-            ) : (
+            ) : transactionViewMode === 'list' ? (
               <div className="space-y-4">
                 {groupedTransactions.map((item) => (
                   <Card key={item.type === 'transfer' ? `transfer-${item._id}` : item._id} className="border-destructive/20">
@@ -308,6 +370,112 @@ export default function ArchivedTransactions() {
                   </Card>
                 ))}
               </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-border">
+                      <th className="text-left p-3 font-medium text-muted-foreground">Date</th>
+                      <th className="text-left p-3 font-medium text-muted-foreground">Transaction Details</th>
+                      <th className="text-left p-3 font-medium text-muted-foreground">Category</th>
+                      <th className="text-left p-3 font-medium text-muted-foreground">Account</th>
+                      <th className="text-right p-3 font-medium text-muted-foreground">Amount</th>
+                      <th className="text-center p-3 font-medium text-muted-foreground">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {groupedTransactions.map((item) => (
+                      <tr key={item.type === 'transfer' ? `transfer-${item._id}` : item._id} className="border-b border-border hover:bg-muted/50 transition-colors">
+                        <td className="p-3 text-sm text-muted-foreground">
+                          {formatDateFull(item.date)}
+                        </td>
+                        <td className="p-3">
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="w-8 h-8 rounded flex items-center justify-center opacity-60"
+                              style={{ backgroundColor: item.category.color, color: 'white' }}
+                            >
+                              {item.type === 'transfer' ? (
+                                <ArrowRightLeft className="h-4 w-4" />
+                              ) : (
+                                <i className={`${item.category.icon} text-xs`} />
+                              )}
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-foreground">
+                                {(() => {
+                                  const result = item.type === 'transfer' 
+                                    ? highlightTransactionPrefix(`Transfer: ${item.description}`)
+                                    : highlightTransactionPrefix(item.description);
+                                  return result.hasPrefix ? (
+                                    <>
+                                      <span className={`${result.color} font-semibold px-1 py-0.5 rounded text-xs`}>
+                                        {result.prefix}
+                                      </span>
+                                      {result.rest}
+                                    </>
+                                  ) : (
+                                    result.rest
+                                  );
+                                })()}
+                              </p>
+                              {item.type === 'transfer' && item.fromAccount && item.toAccount && (
+                                <p className="text-xs text-muted-foreground">
+                                  {item.fromAccount.name} → {item.toAccount.name}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          <Badge 
+                            variant={
+                              item.type === 'transfer' ? 'secondary' :
+                              item.type === 'income' ? 'income' : 'expense'
+                            }
+                            className="text-xs"
+                          >
+                            {item.type === 'transfer' ? 'Transfer' : item.type === 'income' ? 'Income' : 'Expense'}
+                          </Badge>
+                        </td>
+                        <td className="p-3 text-sm text-muted-foreground">
+                          {item.type === 'transfer' ? 'Transfer' : item.account.name}
+                        </td>
+                        <td className="p-3 text-right">
+                          <p className={`text-sm font-medium ${
+                            item.type === 'transfer' ? 'text-foreground' :
+                            item.type === 'income' ? 'text-green-600' : 'text-red-600'
+                          }`}>
+                            {item.type === 'transfer' ? formatCurrency(item.amount.toString()) :
+                             item.type === 'income' ? `+${formatCurrency(item.amount.toString())}` : 
+                             `-${formatCurrency(item.amount.toString())}`}
+                          </p>
+                        </td>
+                        <td className="p-3">
+                          <div className="flex items-center justify-center gap-1">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setRestoreTransaction(item._id)}
+                              className="text-green-600 hover:text-green-700 border-green-200 hover:border-green-300"
+                            >
+                              <RotateCcw className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setPermanentDeleteTransaction(item._id)}
+                              className="text-red-600 hover:text-red-700 border-red-200 hover:border-red-300"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </div>
@@ -373,6 +541,28 @@ export default function ArchivedTransactions() {
               className="bg-green-600 text-white hover:bg-green-700"
             >
               {restoreAllMutation.isPending ? "Restoring..." : "Restore All"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete All Confirmation Dialog */}
+      <AlertDialog open={deleteAllTransactions} onOpenChange={setDeleteAllTransactions}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Permanently delete all transactions?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete all {groupedTransactions.length} archived transactions. 
+              This action cannot be undone and the data will be lost forever.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteAll}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteAllMutation.isPending ? "Deleting..." : "Delete All"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
