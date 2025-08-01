@@ -7,7 +7,7 @@ import { AddTransactionModal } from "@/components/modals/add-transaction-modal";
 import { AddAccountModal } from "@/components/modals/add-account-modal";
 import { TransferModal } from "@/components/modals/transfer-modal";
 import { ExportModal } from "@/components/export/export-modal";
-import { formatCurrency, formatDate, getAccountTypeIcon, getAccountTypeColor, getTransactionTypeColor, groupTransferTransactions } from "@/lib/utils";
+import { formatCurrency, formatDate, getAccountTypeIcon, getAccountTypeColor, getTransactionTypeColor, groupTransferTransactions, highlightTransactionPrefix } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { getValidToken } from "@/lib/queryClient";
 import { usePWA } from "@/hooks/usePWA";
@@ -420,10 +420,21 @@ export default function Dashboard() {
                           </div>
                           <div className="ml-4">
                             <p className="text-sm font-medium text-foreground">
-                              {item.type === 'transfer' 
-                                ? `Transfer: ${item.description}`
-                                : item.description
-                              }
+                              {(() => {
+                                const result = item.type === 'transfer' 
+                                  ? highlightTransactionPrefix(`Transfer: ${item.description}`)
+                                  : highlightTransactionPrefix(item.description);
+                                return result.hasPrefix ? (
+                                  <>
+                                    <span className={`${result.color} font-semibold px-1.5 py-0.5 rounded text-xs`}>
+                                      {result.prefix}
+                                    </span>
+                                    {result.rest}
+                                  </>
+                                ) : (
+                                  result.rest
+                                );
+                              })()}
                             </p>
                             <p className="text-sm text-muted-foreground">
                               {item.type === 'transfer' 
@@ -498,7 +509,19 @@ export default function Dashboard() {
                           </div>
                           <div className="ml-4">
                             <p className="text-sm font-medium text-foreground">
-                              Transfer: {item.description}
+                              {(() => {
+                                const result = highlightTransactionPrefix(`Transfer: ${item.description}`);
+                                return result.hasPrefix ? (
+                                  <>
+                                    <span className={`${result.color} font-semibold px-1.5 py-0.5 rounded text-xs`}>
+                                      {result.prefix}
+                                    </span>
+                                    {result.rest}
+                                  </>
+                                ) : (
+                                  result.rest
+                                );
+                              })()}
                             </p>
                             <p className="text-sm text-muted-foreground">
                               {item.fromAccount!.name} → {item.toAccount!.name}

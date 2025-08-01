@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,7 +15,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { formatCurrency, formatDateFull, getTransactionTypeColor, groupTransferTransactions, type TransactionOrTransfer } from "@/lib/utils";
+import { formatCurrency, formatDateFull, getTransactionTypeColor, groupTransferTransactions, highlightTransactionPrefix, type TransactionOrTransfer } from "@/lib/utils";
 import { RotateCcw, Trash2, ArrowLeft, ArrowRightLeft } from "lucide-react";
 import { useLocation } from "wouter";
 import type { TransactionWithDetails } from "@shared/schema";
@@ -235,15 +236,30 @@ export default function ArchivedTransactions() {
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
                               <p className="text-sm font-medium text-foreground truncate">
-                                {item.type === 'transfer' ? item.description : item.description}
+                                {(() => {
+                                  const result = item.type === 'transfer' 
+                                    ? highlightTransactionPrefix(`Transfer: ${item.description}`)
+                                    : highlightTransactionPrefix(item.description);
+                                  return result.hasPrefix ? (
+                                    <>
+                                      <span className={`${result.color} font-semibold px-1.5 py-0.5 rounded text-xs`}>
+                                        {result.prefix}
+                                      </span>
+                                      {result.rest}
+                                    </>
+                                  ) : (
+                                    result.rest
+                                  );
+                                })()}
                               </p>
-                              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                                item.type === 'transfer' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300' :
-                                item.type === 'income' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' :
-                                'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'
-                              }`}>
+                              <Badge 
+                                variant={
+                                  item.type === 'transfer' ? 'secondary' :
+                                  item.type === 'income' ? 'income' : 'expense'
+                                }
+                              >
                                 {item.type === 'transfer' ? 'Transfer' : item.type === 'income' ? 'Income' : 'Expense'}
-                              </span>
+                              </Badge>
                             </div>
                             <div className="flex items-center gap-2 mt-1">
                               <p className="text-sm text-muted-foreground">

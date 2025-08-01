@@ -74,6 +74,77 @@ export function getTransactionTypeColor(type: string): string {
   }
 }
 
+export function highlightTransactionPrefix(description: string): { prefix: string; rest: string; hasPrefix: boolean; color: string } {
+  // Common transaction prefixes to highlight with their colors
+  const prefixConfigs = [
+    { prefix: 'PURCHASE AT', color: 'bg-red-100 text-red-800' },
+    { prefix: 'PAYMENT TO', color: 'bg-red-100 text-red-800' },
+    { prefix: 'FUNDS TRANSFERRED TO', color: 'bg-purple-100 text-purple-800' },
+    { prefix: 'PAYMENT FROM', color: 'bg-blue-100 text-blue-800' },
+    { prefix: 'FUNDS RECEIVED FROM', color: 'bg-blue-100 text-blue-800' },
+    { prefix: 'TRANSFER:', color: 'bg-blue-100 text-blue-800' },
+    { prefix: 'TRANSFER', color: 'bg-blue-100 text-blue-800' },
+    { prefix: 'PAYMENT:', color: 'bg-blue-100 text-blue-800' },
+    { prefix: 'DEPOSIT:', color: 'bg-blue-100 text-blue-800' },
+    { prefix: 'WITHDRAWAL:', color: 'bg-blue-100 text-blue-800' },
+    { prefix: 'PURCHASE:', color: 'bg-blue-100 text-blue-800' },
+    { prefix: 'REFUND:', color: 'bg-blue-100 text-blue-800' },
+    { prefix: 'FEE:', color: 'bg-blue-100 text-blue-800' },
+    { prefix: 'CHARGE:', color: 'bg-blue-100 text-blue-800' },
+    { prefix: 'CREDIT:', color: 'bg-blue-100 text-blue-800' },
+    { prefix: 'DEBIT:', color: 'bg-blue-100 text-blue-800' },
+    { prefix: 'ATM:', color: 'bg-blue-100 text-blue-800' },
+    { prefix: 'POS:', color: 'bg-blue-100 text-blue-800' },
+    { prefix: 'ONLINE:', color: 'bg-blue-100 text-blue-800' },
+    { prefix: 'IN-STORE:', color: 'bg-blue-100 text-blue-800' },
+    { prefix: 'RECURRING:', color: 'bg-blue-100 text-blue-800' },
+    { prefix: 'AUTOPAY:', color: 'bg-blue-100 text-blue-800' },
+    { prefix: 'BILL PAY:', color: 'bg-blue-100 text-blue-800' },
+    { prefix: 'DIRECT DEPOSIT:', color: 'bg-blue-100 text-blue-800' },
+    { prefix: 'ACH:', color: 'bg-blue-100 text-blue-800' },
+    { prefix: 'WIRE:', color: 'bg-blue-100 text-blue-800' },
+    { prefix: 'CHECK:', color: 'bg-blue-100 text-blue-800' },
+    { prefix: 'CASH:', color: 'bg-blue-100 text-blue-800' },
+    { prefix: 'VENMO:', color: 'bg-blue-100 text-blue-800' },
+    { prefix: 'PAYPAL:', color: 'bg-blue-100 text-blue-800' },
+    { prefix: 'ZELLE:', color: 'bg-blue-100 text-blue-800' },
+    { prefix: 'CASH APP:', color: 'bg-blue-100 text-blue-800' },
+    { prefix: 'APPLE PAY:', color: 'bg-blue-100 text-blue-800' },
+    { prefix: 'GOOGLE PAY:', color: 'bg-blue-100 text-blue-800' },
+    { prefix: 'SAMSUNG PAY:', color: 'bg-blue-100 text-blue-800' }
+  ];
+
+  // Find the longest matching prefix
+  let matchedConfig = null;
+  for (const config of prefixConfigs) {
+    if (description.toUpperCase().startsWith(config.prefix.toUpperCase())) {
+      if (!matchedConfig || config.prefix.length > matchedConfig.prefix.length) {
+        matchedConfig = config;
+      }
+    }
+  }
+
+  if (matchedConfig) {
+    const prefixLength = matchedConfig.prefix.length;
+    const prefix = description.substring(0, prefixLength);
+    const rest = description.substring(prefixLength);
+    
+    return {
+      prefix,
+      rest,
+      hasPrefix: true,
+      color: matchedConfig.color
+    };
+  }
+
+  return {
+    prefix: '',
+    rest: description,
+    hasPrefix: false,
+    color: 'bg-blue-100 text-blue-800'
+  };
+}
+
 // Transfer-related types and utilities
 export interface TransactionOrTransfer extends Omit<TransactionWithDetails, 'type'> {
   type: 'income' | 'expense' | 'transfer';

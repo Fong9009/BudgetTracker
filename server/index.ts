@@ -165,7 +165,7 @@ app.use('/api', (req, res, next) => {
       const token = req.headers['x-csrf-token'];
       return Array.isArray(token) ? token[0] : token || '';
     }
-  })(req, res, next);
+  })(req as any, res as any, next as any);
 });
 
 // Request logging middleware

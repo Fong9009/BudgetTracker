@@ -24,7 +24,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, FileText, CheckCircle, AlertCircle, Loader2, X, Edit } from "lucide-react";
-import { formatCurrency, formatDateFull } from "@/lib/utils";
+import { formatCurrency, formatDateFull, highlightTransactionPrefix } from "@/lib/utils";
 import { apiRequest, getValidToken } from "@/lib/queryClient";
 import type { Account, Category } from "@shared/schema";
 
@@ -586,7 +586,19 @@ export function UploadStatementModal({ open, onOpenChange }: UploadStatementModa
                                 onClick={() => startEditingTransaction(index)}
                                 title="Click to edit"
                               >
-                                {transaction.description}
+                                {(() => {
+                                  const result = highlightTransactionPrefix(transaction.description);
+                                  return result.hasPrefix ? (
+                                    <>
+                                      <span className={`${result.color} font-semibold px-1.5 py-0.5 rounded text-xs`}>
+                                        {result.prefix}
+                                      </span>
+                                      {result.rest}
+                                    </>
+                                  ) : (
+                                    result.rest
+                                  );
+                                })()}
                               </div>
                             )}
                             
@@ -661,16 +673,26 @@ export function UploadStatementModal({ open, onOpenChange }: UploadStatementModa
                                   <SelectItem value="expense">Expense</SelectItem>
                                 </SelectContent>
                               </Select>
-                            ) : (
-                              <Badge 
-                                variant={transaction.type === 'income' ? 'default' : 'secondary'}
-                                className="cursor-pointer hover:opacity-80 transition-opacity"
-                                onClick={() => startEditingTransaction(index)}
-                                title="Click to edit"
-                              >
-                                {transaction.type}
-                              </Badge>
-                            )}
+                                                         ) : (
+                               <Select
+                                 value={transaction.type}
+                                 onValueChange={(value: 'income' | 'expense') => {
+                                   // Update the transaction directly without entering edit mode
+                                   const updatedTransaction = { ...transaction, type: value };
+                                   const newEditingTransactions = new Map(editingTransactions);
+                                   newEditingTransactions.set(index, updatedTransaction);
+                                   setEditingTransactions(newEditingTransactions);
+                                 }}
+                               >
+                                 <SelectTrigger className="w-24 h-6 text-xs">
+                                   <SelectValue />
+                                 </SelectTrigger>
+                                 <SelectContent>
+                                   <SelectItem value="income">Income</SelectItem>
+                                   <SelectItem value="expense">Expense</SelectItem>
+                                 </SelectContent>
+                               </Select>
+                             )}
                           </div>
                           
                           {/* Category Mapping */}

@@ -16,7 +16,7 @@ import { AddAccountModal } from "@/components/modals/add-account-modal";
 import { EditAccountModal } from "@/components/modals/edit-account-modal";
 import { TransferModal } from "@/components/modals/transfer-modal";
 import { SortableGrid } from "@/components/ui/sortable-grid";
-import { formatCurrency, getAccountTypeIcon, getAccountTypeColor, getTransactionTypeColor } from "@/lib/utils";
+import { formatCurrency, getAccountTypeIcon, getAccountTypeColor, getTransactionTypeColor, highlightTransactionPrefix } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -416,7 +416,19 @@ export default function Accounts() {
                               <div className="flex items-center justify-between">
                                 <div>
                                   <p className="text-sm font-medium text-foreground">
-                                    {transaction.description}
+                                    {(() => {
+                                      const result = highlightTransactionPrefix(transaction.description);
+                                      return result.hasPrefix ? (
+                                        <>
+                                          <span className={`${result.color} font-semibold px-1.5 py-0.5 rounded text-xs`}>
+                                            {result.prefix}
+                                          </span>
+                                          {result.rest}
+                                        </>
+                                      ) : (
+                                        result.rest
+                                      );
+                                    })()}
                                   </p>
                                   <p className="text-sm text-muted-foreground">
                                     {transaction.category.name}

@@ -31,7 +31,7 @@ import { TransferModal } from "@/components/modals/transfer-modal";
 import { ExportModal } from "@/components/export/export-modal";
 import { UploadStatementModal } from "@/components/modals/upload-statement-modal";
 import { EditTransactionModal } from "@/components/modals/edit-transaction-modal";
-import { formatCurrency, formatDateFull, getTransactionTypeColor, debounce, cn, groupTransferTransactions, type TransactionOrTransfer } from "@/lib/utils";
+import { formatCurrency, formatDateFull, getTransactionTypeColor, debounce, cn, groupTransferTransactions, highlightTransactionPrefix, type TransactionOrTransfer } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Search, Edit2, Trash2, Download, Calendar as CalendarIcon, Filter, ChevronDown, X, SlidersHorizontal, ArrowRightLeft, Clock, TrendingUp, Zap, Archive, Upload } from "lucide-react";
@@ -987,10 +987,21 @@ export default function Transactions() {
                           <div className="flex items-center justify-between">
                             <div>
                               <p className="text-sm font-medium text-foreground">
-                                {item.type === 'transfer' 
-                                  ? `Transfer: ${item.description}`
-                                  : item.description
-                                }
+                                {(() => {
+                                  const result = item.type === 'transfer' 
+                                    ? highlightTransactionPrefix(`Transfer: ${item.description}`)
+                                    : highlightTransactionPrefix(item.description);
+                                  return result.hasPrefix ? (
+                                    <>
+                                      <span className={`${result.color} font-semibold px-1.5 py-0.5 rounded text-xs`}>
+                                        {result.prefix}
+                                      </span>
+                                      {result.rest}
+                                    </>
+                                  ) : (
+                                    result.rest
+                                  );
+                                })()}
                               </p>
                               <p className="text-sm text-muted-foreground">
                                 {item.type === 'transfer' 
