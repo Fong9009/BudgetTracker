@@ -34,7 +34,7 @@ import { EditTransactionModal } from "@/components/modals/edit-transaction-modal
 import { formatCurrency, formatDateFull, getTransactionTypeColor, debounce, cn, groupTransferTransactions, highlightTransactionPrefix, type TransactionOrTransfer } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Search, Edit2, Trash2, Download, Calendar as CalendarIcon, Filter, ChevronDown, X, SlidersHorizontal, ArrowRightLeft, Clock, TrendingUp, Zap, Archive, Upload } from "lucide-react";
+import { Plus, Search, Edit2, Trash2, Download, Calendar as CalendarIcon, Filter, ChevronDown, X, SlidersHorizontal, ArrowRightLeft, Clock, TrendingUp, Zap, Archive, Upload, List, Table } from "lucide-react";
 import { useLocation } from "wouter";
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subDays, subMonths } from "date-fns";
 import type { TransactionWithDetails, Account, Category } from "@shared/schema";
@@ -66,6 +66,7 @@ export default function Transactions() {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [showFilters, setShowFilters] = useState(false);
   const [showQuickFilters, setShowQuickFilters] = useState(false);
+  const [transactionViewMode, setTransactionViewMode] = useState<'list' | 'table'>('table');
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -899,8 +900,29 @@ export default function Transactions() {
                 <CardTitle>
                   All Transactions ({groupedTransactions.length})
                 </CardTitle>
-                {/* Sort Controls */}
+                {/* View Toggle and Sort Controls */}
                 <div className="flex items-center gap-2">
+                  {/* View Toggle */}
+                  <div className="flex items-center border rounded-md">
+                    <Button
+                      variant={transactionViewMode === 'list' ? 'default' : 'ghost'}
+                      size="sm"
+                      className="rounded-r-none"
+                      onClick={() => setTransactionViewMode('list')}
+                    >
+                      <List className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant={transactionViewMode === 'table' ? 'default' : 'ghost'}
+                      size="sm"
+                      className="rounded-l-none"
+                      onClick={() => setTransactionViewMode('table')}
+                    >
+                      <Table className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  
+                  {/* Sort Controls */}
                   <Select value={sortBy} onValueChange={setSortBy}>
                     <SelectTrigger className="w-32">
                       <SelectValue />
@@ -966,7 +988,7 @@ export default function Transactions() {
                     Add Transaction
                   </Button>
                 </div>
-              ) : (
+              ) : transactionViewMode === 'list' ? (
                 <div className="space-y-0 divide-y divide-border">
                   {groupedTransactions.map((item) => (
                     <div key={item._id} className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors">
@@ -1056,6 +1078,115 @@ export default function Transactions() {
                       </div>
                     </div>
                   ))}
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="text-left p-3 font-medium text-muted-foreground">Date</th>
+                        <th className="text-left p-3 font-medium text-muted-foreground">Description</th>
+                        <th className="text-left p-3 font-medium text-muted-foreground">Category</th>
+                        <th className="text-left p-3 font-medium text-muted-foreground">Account</th>
+                        <th className="text-right p-3 font-medium text-muted-foreground">Amount</th>
+                        <th className="text-center p-3 font-medium text-muted-foreground">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {groupedTransactions.map((item) => (
+                        <tr key={item._id} className="border-b border-border hover:bg-muted/50 transition-colors">
+                          <td className="p-3 text-sm text-muted-foreground">
+                            {formatDateFull(item.date)}
+                          </td>
+                          <td className="p-3">
+                            <div className="flex items-center gap-2">
+                              <div
+                                className="w-8 h-8 rounded flex items-center justify-center"
+                                style={{ backgroundColor: item.category.color, color: 'white' }}
+                              >
+                                {item.type === 'transfer' ? (
+                                  <ArrowRightLeft className="h-4 w-4" />
+                                ) : (
+                                  <i className={`${item.category.icon} text-xs`} />
+                                )}
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-foreground">
+                                  {(() => {
+                                    const result = item.type === 'transfer' 
+                                      ? highlightTransactionPrefix(`Transfer: ${item.description}`)
+                                      : highlightTransactionPrefix(item.description);
+                                    return result.hasPrefix ? (
+                                      <>
+                                        <span className={`${result.color} font-semibold px-1 py-0.5 rounded text-xs`}>
+                                          {result.prefix}
+                                        </span>
+                                        {result.rest}
+                                      </>
+                                    ) : (
+                                      result.rest
+                                    );
+                                  })()}
+                                </p>
+                                {item.type === 'transfer' && (
+                                  <p className="text-xs text-muted-foreground">
+                                    {item.fromAccount!.name} → {item.toAccount!.name}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-3">
+                            <Badge variant="outline" className="text-xs">
+                              {item.category.name}
+                            </Badge>
+                          </td>
+                          <td className="p-3 text-sm text-muted-foreground">
+                            {item.type === 'transfer' ? 'Transfer' : item.account.name}
+                          </td>
+                          <td className="p-3 text-right">
+                            <p className={`text-sm font-medium ${
+                              item.type === 'transfer' 
+                                ? 'text-foreground'
+                                : getTransactionTypeColor(item.type)
+                            }`}>
+                              {item.type === 'transfer' 
+                                ? formatCurrency(item.amount)
+                                : `${item.type === 'income' ? '+' : '-'}${formatCurrency(item.amount)}`
+                              }
+                            </p>
+                          </td>
+                          <td className="p-3">
+                            <div className="flex items-center justify-center gap-1">
+                              {item.type !== 'transfer' && (
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedTransaction(item);
+                                    setShowEditTransaction(true);
+                                  }}
+                                >
+                                  <Edit2 className="h-3 w-3" />
+                                </Button>
+                              )}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setArchiveTransaction(
+                                  item.type === 'transfer' 
+                                    ? item.fromTransactionId! 
+                                    : item._id
+                                )}
+                              >
+                                <Archive className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </CardContent>

@@ -196,6 +196,7 @@ export class MongoDBStorage implements IStorage {
     const accountData = {
       ...insertAccount,
       balance: parseFloat(insertAccount.balance),
+      initialBalance: parseFloat(insertAccount.initialBalance),
       userId
     };
     const account = await AccountModel.create(accountData);
@@ -206,6 +207,9 @@ export class MongoDBStorage implements IStorage {
     const updateData = { ...updates };
     if (updateData.balance) {
       (updateData as any).balance = parseFloat(updateData.balance);
+    }
+    if (updateData.initialBalance) {
+      (updateData as any).initialBalance = parseFloat(updateData.initialBalance);
     }
     
     const account = await AccountModel.findByIdAndUpdate(id, updateData, { new: true });
@@ -1097,6 +1101,7 @@ export class MongoDBStorage implements IStorage {
       name: doc.name,
       type: doc.type,
       balance: doc.balance,
+      initialBalance: doc.initialBalance || doc.balance, // Fallback to balance for existing accounts
       userId: doc.userId.toString(),
       isArchived: doc.isArchived || false,
       createdAt: doc.createdAt,

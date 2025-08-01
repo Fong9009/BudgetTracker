@@ -14,6 +14,7 @@ const AccountSchema = new mongoose.Schema({
   name: { type: String, required: true },
   type: { type: String, required: true }, // checking, savings, credit
   balance: { type: Number, required: true },
+  initialBalance: { type: Number, required: true },
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   isArchived: { type: Boolean, default: false },
 }, { timestamps: true });
@@ -62,6 +63,7 @@ export const insertAccountSchema = z.object({
   name: z.string().min(1),
   type: z.string().min(1),
   balance: z.string().regex(/^\d+(\.\d{2})?$/, "Balance must be a valid decimal with 2 decimal places"),
+  initialBalance: z.string().regex(/^\d+(\.\d{2})?$/, "Initial balance must be a valid decimal with 2 decimal places"),
 });
 
 export const insertCategorySchema = z.object({
@@ -155,6 +157,7 @@ export interface Account {
   name: string;
   type: string;
   balance: number;
+  initialBalance: number;
   userId: string;
   isArchived: boolean;
   createdAt: Date;

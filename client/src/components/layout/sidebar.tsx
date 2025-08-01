@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { usePWA } from "@/hooks/usePWA";
-import { Smartphone } from "lucide-react";
+import { Smartphone, RefreshCw } from "lucide-react";
 import { useState } from "react";
 
 const navigation = [
@@ -16,6 +16,7 @@ export function Sidebar() {
   const [location] = useLocation();
   const { isInstallable, installApp } = usePWA();
   const [isInstalling, setIsInstalling] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleInstallApp = async () => {
     if (!isInstallable) return;
@@ -27,6 +28,35 @@ export function Sidebar() {
       console.error('Failed to install app:', error);
     } finally {
       setIsInstalling(false);
+    }
+  };
+
+  const handleHardRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      // Simulate Cmd+Shift+R / Ctrl+Shift+R behavior
+      // Clear cache and force a complete reload
+      if ('caches' in window) {
+        const cacheNames = await caches.keys();
+        await Promise.all(cacheNames.map(name => caches.delete(name)));
+      }
+      
+      // Force reload by changing the URL slightly and then reloading
+      const currentUrl = window.location.href;
+      const separator = currentUrl.includes('?') ? '&' : '?';
+      const timestamp = Date.now();
+      window.location.href = `${currentUrl}${separator}_refresh=${timestamp}`;
+      
+      // If the above doesn't work, fall back to regular reload
+      setTimeout(() => {
+        window.location.reload();
+      }, 100);
+    } catch (error) {
+      console.error('Failed to refresh:', error);
+      // Fallback to simple reload
+      window.location.reload();
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -79,8 +109,23 @@ export function Sidebar() {
           })}
         </nav>
 
-        {/* Install App Button */}
+        {/* Hard Refresh Button */}
         <div className="px-2 mt-4">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleHardRefresh}
+            disabled={isRefreshing}
+            className="w-full justify-start"
+            title="Hard refresh - clears cache and reloads the app"
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+            {isRefreshing ? 'Refreshing...' : 'Hard Refresh'}
+          </Button>
+        </div>
+
+        {/* Install App Button */}
+        <div className="px-2 mt-2">
           <Button
             variant="outline"
             size="sm"

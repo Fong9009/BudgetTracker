@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,7 +21,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { getValidToken } from "@/lib/queryClient";
-import { Plus, Edit2, Trash2, ArrowRightLeft, Archive, X, Receipt } from "lucide-react";
+import { Plus, Edit2, Trash2, ArrowRightLeft, Archive, X, Receipt, List, Table } from "lucide-react";
 import { useLocation } from "wouter";
 import type { Account, TransactionWithDetails } from "@shared/schema";
 
@@ -34,6 +34,7 @@ export default function Accounts() {
   const [archiveAccount, setArchiveAccount] = useState<string | null>(null);
   const [accountOrder, setAccountOrder] = useState<string[]>([]);
   const [viewingAccountTransactions, setViewingAccountTransactions] = useState<Account | null>(null);
+  const [transactionViewMode, setTransactionViewMode] = useState<'list' | 'table'>('table');
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -124,7 +125,7 @@ export default function Accounts() {
       queryClient.invalidateQueries({ queryKey: ["/api/analytics"] });
       toast({
         title: "Success",
-        description: "Account archived successfully. You can restore it from the archive if needed.",
+        description: "Account archived successfully",
         variant: "success",
       });
       setArchiveAccount(null);
@@ -157,72 +158,43 @@ export default function Accounts() {
 
   const handleReorder = (newOrder: Account[]) => {
     setAccountOrder(newOrder.map(account => account._id));
-    // Here you could also save the order to localStorage or send to server
-    localStorage.setItem('accountOrder', JSON.stringify(newOrder.map(account => account._id)));
   };
 
-  // Sort accounts based on saved order or default order
-  const sortedAccounts = React.useMemo(() => {
-    if (accountOrder.length > 0) {
-      const orderMap = new Map(accountOrder.map((id, index) => [id, index]));
-      const sorted = [...accounts].sort((a, b) => {
-        const aIndex = orderMap.get(a._id) ?? Number.MAX_SAFE_INTEGER;
-        const bIndex = orderMap.get(b._id) ?? Number.MAX_SAFE_INTEGER;
-        return aIndex - bIndex;
-      });
-      return sorted;
-    }
-    return accounts;
+  const sortedAccounts = useMemo(() => {
+    if (accountOrder.length === 0) return accounts;
+    
+    const orderedAccounts = accountOrder
+      .map(id => accounts.find(account => account._id === id))
+      .filter(Boolean) as Account[];
+    
+    const remainingAccounts = accounts.filter(account => !accountOrder.includes(account._id));
+    
+    return [...orderedAccounts, ...remainingAccounts];
   }, [accounts, accountOrder]);
 
-  // Load saved order on mount
-  React.useEffect(() => {
-    const savedOrder = localStorage.getItem('accountOrder');
-    if (savedOrder) {
-      try {
-        const parsedOrder = JSON.parse(savedOrder);
-        // Validate that the saved order contains valid IDs
-        if (Array.isArray(parsedOrder) && parsedOrder.every(id => typeof id === 'string')) {
-          setAccountOrder(parsedOrder);
-        } else {
-          console.warn('Invalid account order found in localStorage, clearing it');
-          localStorage.removeItem('accountOrder');
-        }
-      } catch (error) {
-        console.error('Failed to parse saved account order:', error);
-        localStorage.removeItem('accountOrder');
-      }
-    }
-  }, []);
+  if (!isAuthenticated && !authLoading) {
+    setLocation("/login");
+    return null;
+  }
 
   return (
-    <div className="flex-1 relative overflow-y-auto focus:outline-none">
-      <div className="py-6">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
-          {/* Page header */}
-          <div className="md:flex md:items-center md:justify-between">
-            <div className="flex-1 min-w-0">
-              <h2 className="text-2xl font-semibold text-foreground sm:truncate">
-                Accounts
-              </h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Manage your financial accounts and balances
-              </p>
-            </div>
-            <div className="mt-4 flex md:mt-0 md:ml-4 space-x-2">
+    <div className="container mx-auto px-4 py-8">
+      <div className="max-w-7xl mx-auto">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-foreground mb-2">Accounts</h1>
+          <p className="text-muted-foreground">
+            Manage your bank accounts, credit cards, and other financial accounts
+          </p>
+        </div>
+
+        <div className="space-y-6">
+          {/* Header Actions */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
               <Button
-                variant="outline"
-                onClick={() => setLocation("/accounts/archived")}
-                className="flex items-center gap-2"
-              >
-                <Archive className="h-4 w-4" />
-                View Archive
-              </Button>
-              <Button
-                variant="outline"
                 onClick={() => setShowTransferModal(true)}
-                disabled={accounts.length < 2}
-                className="flex items-center gap-2"
+                variant="outline"
+                className="border-dashed"
               >
                 <ArrowRightLeft className="h-4 w-4" />
                 Transfer
@@ -426,14 +398,35 @@ export default function Accounts() {
                       <Receipt className="h-5 w-5" />
                       {viewingAccountTransactions.name} - Transactions
                     </CardTitle>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleCloseTransactions}
-                    >
-                      <X className="h-4 w-4 mr-2" />
-                      Close
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      {/* View Mode Toggle */}
+                      <div className="flex items-center border rounded-md">
+                        <Button
+                          variant={transactionViewMode === 'list' ? 'default' : 'ghost'}
+                          size="sm"
+                          onClick={() => setTransactionViewMode('list')}
+                          className="rounded-r-none"
+                        >
+                          <List className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant={transactionViewMode === 'table' ? 'default' : 'ghost'}
+                          size="sm"
+                          onClick={() => setTransactionViewMode('table')}
+                          className="rounded-l-none"
+                        >
+                          <Table className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleCloseTransactions}
+                      >
+                        <X className="h-4 w-4 mr-2" />
+                        Close
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -470,6 +463,7 @@ export default function Accounts() {
                       </div>
                     );
                   })()}
+                  
                   {transactionsLoading ? (
                     <div className="space-y-4">
                       {[...Array(5)].map((_, i) => (
@@ -492,7 +486,7 @@ export default function Accounts() {
                     <div className="text-center py-8">
                       <p className="text-muted-foreground">No transactions found for this account.</p>
                     </div>
-                  ) : (
+                  ) : transactionViewMode === 'list' ? (
                     <div className="space-y-0 divide-y divide-border">
                       {accountTransactions.map((transaction) => (
                         <div key={transaction._id} className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors">
@@ -541,6 +535,97 @@ export default function Accounts() {
                         </div>
                       ))}
                     </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-border">
+                            <th className="text-left p-3 text-sm font-medium text-muted-foreground">Date</th>
+                            <th className="text-left p-3 text-sm font-medium text-muted-foreground">Transaction Details</th>
+                            <th className="text-right p-3 text-sm font-medium text-muted-foreground">Money In</th>
+                            <th className="text-right p-3 text-sm font-medium text-muted-foreground">Money Out</th>
+                            <th className="text-right p-3 text-sm font-medium text-muted-foreground">Balance</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(() => {
+                            let runningBalance = viewingAccountTransactions.balance || 0;
+                            return accountTransactions.map((transaction, index) => {
+                              const isIncome = transaction.type === 'income';
+                              const amount = transaction.amount;
+                              
+                              // Calculate running balance
+                              if (isIncome) {
+                                runningBalance += amount;
+                              } else {
+                                runningBalance -= amount;
+                              }
+                              
+                              return (
+                                <tr key={transaction._id} className="border-b border-border hover:bg-muted/50 transition-colors">
+                                  <td className="p-3 text-sm text-muted-foreground">
+                                    {new Date(transaction.date).toLocaleDateString()}
+                                  </td>
+                                  <td className="p-3">
+                                    <div className="flex items-center gap-3">
+                                      <div
+                                        className="w-8 h-8 rounded-lg flex items-center justify-center"
+                                        style={{ backgroundColor: transaction.category.color, color: 'white' }}
+                                      >
+                                        <i className={`${transaction.category.icon} text-xs`} />
+                                      </div>
+                                      <div>
+                                        <p className="text-sm font-medium text-foreground">
+                                          {(() => {
+                                            const result = highlightTransactionPrefix(transaction.description);
+                                            return result.hasPrefix ? (
+                                              <>
+                                                <span className={`${result.color} font-semibold px-1 py-0.5 rounded text-xs`}>
+                                                  {result.prefix}
+                                                </span>
+                                                {result.rest}
+                                              </>
+                                            ) : (
+                                              result.rest
+                                            );
+                                          })()}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">
+                                          {transaction.category.name}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="p-3 text-right">
+                                    {isIncome ? (
+                                      <span className="text-sm font-medium text-green-600">
+                                        {formatCurrency(amount)}
+                                      </span>
+                                    ) : (
+                                      <span className="text-sm text-muted-foreground">-</span>
+                                    )}
+                                  </td>
+                                  <td className="p-3 text-right">
+                                    {!isIncome ? (
+                                      <span className="text-sm font-medium text-red-600">
+                                        {formatCurrency(amount)}
+                                      </span>
+                                    ) : (
+                                      <span className="text-sm text-muted-foreground">-</span>
+                                    )}
+                                  </td>
+                                  <td className="p-3 text-right">
+                                    <span className="text-sm font-medium">
+                                      {formatCurrency(runningBalance)}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            });
+                          })()}
+                        </tbody>
+                      </table>
+                    </div>
                   )}
                 </CardContent>
               </Card>
@@ -558,10 +643,10 @@ export default function Accounts() {
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Archive Account</AlertDialogTitle>
-                          <AlertDialogDescription>
-              This will move the account to your archive. You can restore it later from the archived accounts page.
-              Note: You cannot archive an account that has active transactions. Please archive or delete those transactions first.
-            </AlertDialogDescription>
+              <AlertDialogDescription>
+                This will move the account to your archive. You can restore it later from the archived accounts page.
+                Note: You cannot archive an account that has active transactions. Please archive or delete those transactions first.
+              </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>

@@ -37,6 +37,7 @@ const formSchema = z.object({
     required_error: "Please select an account type",
   }),
   balance: z.string().regex(/^\d+(\.\d{2})?$/, "Balance must be a valid decimal"),
+  initialBalance: z.string().regex(/^\d+(\.\d{2})?$/, "Initial balance must be a valid decimal"),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -56,6 +57,7 @@ export function AddAccountModal({ open, onOpenChange }: AddAccountModalProps) {
       name: "",
       type: "checking",
       balance: "0.00",
+      initialBalance: "0.00",
     },
   });
 
@@ -65,6 +67,7 @@ export function AddAccountModal({ open, onOpenChange }: AddAccountModalProps) {
       const accountData = {
         ...data,
         balance: parseFloat(data.balance),
+        initialBalance: parseFloat(data.initialBalance),
         isArchived: false,
       };
       
@@ -164,10 +167,29 @@ export function AddAccountModal({ open, onOpenChange }: AddAccountModalProps) {
 
             <FormField
               control={form.control}
-              name="balance"
+              name="initialBalance"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Initial Balance</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="0.00"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="balance"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Current Balance</FormLabel>
                   <FormControl>
                     <Input
                       type="number"

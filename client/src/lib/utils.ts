@@ -329,7 +329,8 @@ export function calculateAccountFinancialSummary(
   account: Account,
   transactions: TransactionWithDetails[]
 ): AccountFinancialSummary {
-  const initialBalance = account.balance || 0;
+  // Use the initialBalance field which should never change
+  const initialBalance = account.initialBalance || 0;
   
   const totalIncome = transactions
     .filter(t => t.type === 'income')
@@ -340,6 +341,7 @@ export function calculateAccountFinancialSummary(
     .reduce((sum, t) => sum + t.amount, 0);
     
   const netChange = totalIncome - totalExpense;
+  // Current balance should be calculated from initial balance + net change from transactions
   const currentBalance = initialBalance + netChange;
   
   return {

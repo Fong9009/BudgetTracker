@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { usePWA } from "@/hooks/usePWA";
-import { X, Menu, Smartphone } from "lucide-react";
+import { X, Menu, Smartphone, RefreshCw } from "lucide-react";
 import { useState } from "react";
 
 const navigation = [
@@ -21,6 +21,7 @@ export function MobileMenu({ className }: MobileMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const { isInstallable, installApp } = usePWA();
   const [isInstalling, setIsInstalling] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const toggleMenu = () => setIsOpen(!isOpen);
   const closeMenu = () => setIsOpen(false);
@@ -36,6 +37,35 @@ export function MobileMenu({ className }: MobileMenuProps) {
       console.error('Failed to install app:', error);
     } finally {
       setIsInstalling(false);
+    }
+  };
+
+  const handleHardRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      // Simulate Cmd+Shift+R / Ctrl+Shift+R behavior
+      // Clear cache and force a complete reload
+      if ('caches' in window) {
+        const cacheNames = await caches.keys();
+        await Promise.all(cacheNames.map(name => caches.delete(name)));
+      }
+      
+      // Force reload by changing the URL slightly and then reloading
+      const currentUrl = window.location.href;
+      const separator = currentUrl.includes('?') ? '&' : '?';
+      const timestamp = Date.now();
+      window.location.href = `${currentUrl}${separator}_refresh=${timestamp}`;
+      
+      // If the above doesn't work, fall back to regular reload
+      setTimeout(() => {
+        window.location.reload();
+      }, 100);
+    } catch (error) {
+      console.error('Failed to refresh:', error);
+      // Fallback to simple reload
+      window.location.reload();
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -109,6 +139,18 @@ export function MobileMenu({ className }: MobileMenuProps) {
                   );
                 })}
                 
+                {/* Hard Refresh Button */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleHardRefresh}
+                  disabled={isRefreshing}
+                  className="w-full justify-start mt-4"
+                >
+                  <RefreshCw className={`h-4 w-4 mr-3 ${isRefreshing ? 'animate-spin' : ''}`} />
+                  {isRefreshing ? 'Refreshing...' : 'Hard Refresh'}
+                </Button>
+
                 {/* Install App Button */}
                 {isInstallable && (
                   <Button
@@ -116,7 +158,7 @@ export function MobileMenu({ className }: MobileMenuProps) {
                     size="sm"
                     onClick={handleInstallApp}
                     disabled={isInstalling}
-                    className="w-full justify-start mt-4"
+                    className="w-full justify-start mt-2"
                   >
                     <Smartphone className="h-4 w-4 mr-3" />
                     {isInstalling ? 'Installing...' : 'Install App'}

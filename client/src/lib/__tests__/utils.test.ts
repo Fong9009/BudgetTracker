@@ -90,7 +90,7 @@ describe('Utility Functions', () => {
         isArchived: false,
         createdAt: new Date(),
         updatedAt: new Date(),
-        account: { _id: 'account1', name: 'Checking', type: 'checking', balance: 1000, userId: 'user1', isArchived: false, createdAt: new Date(), updatedAt: new Date() },
+        account: { _id: 'account1', name: 'Checking', type: 'checking', balance: 1000, initialBalance: 1000, userId: 'user1', isArchived: false, createdAt: new Date(), updatedAt: new Date() },
         category: { _id: 'category1', name: 'Transfer', color: '#000', icon: 'fas fa-exchange-alt', userId: 'user1', isArchived: false, createdAt: new Date(), updatedAt: new Date() }
       };
 
@@ -105,7 +105,7 @@ describe('Utility Functions', () => {
         isArchived: false,
         createdAt: new Date(),
         updatedAt: new Date(),
-        account: { _id: 'account1', name: 'Checking', type: 'checking', balance: 1000, userId: 'user1', isArchived: false, createdAt: new Date(), updatedAt: new Date() },
+        account: { _id: 'account1', name: 'Checking', type: 'checking', balance: 1000, initialBalance: 1000, userId: 'user1', isArchived: false, createdAt: new Date(), updatedAt: new Date() },
         category: { _id: 'category2', name: 'Groceries', color: '#000', icon: 'fas fa-shopping-cart', userId: 'user1', isArchived: false, createdAt: new Date(), updatedAt: new Date() }
       };
 
@@ -151,7 +151,7 @@ describe('Utility Functions', () => {
         isArchived: false,
         createdAt: new Date(),
         updatedAt: new Date(),
-        account: { _id: 'checking', name: 'Checking', type: 'checking', balance: 900, userId: 'user1', isArchived: false, createdAt: new Date(), updatedAt: new Date() },
+        account: { _id: 'checking', name: 'Checking', type: 'checking', balance: 900, initialBalance: 1000, userId: 'user1', isArchived: false, createdAt: new Date(), updatedAt: new Date() },
         category: { _id: 'transfer', name: 'Transfer', color: '#000', icon: 'fas fa-exchange-alt', userId: 'user1', isArchived: false, createdAt: new Date(), updatedAt: new Date() }
       };
 
@@ -166,7 +166,7 @@ describe('Utility Functions', () => {
         isArchived: false,
         createdAt: new Date(),
         updatedAt: new Date(),
-        account: { _id: 'savings', name: 'Savings', type: 'savings', balance: 1100, userId: 'user1', isArchived: false, createdAt: new Date(), updatedAt: new Date() },
+        account: { _id: 'savings', name: 'Savings', type: 'savings', balance: 1100, initialBalance: 1000, userId: 'user1', isArchived: false, createdAt: new Date(), updatedAt: new Date() },
         category: { _id: 'transfer', name: 'Transfer', color: '#000', icon: 'fas fa-exchange-alt', userId: 'user1', isArchived: false, createdAt: new Date(), updatedAt: new Date() }
       };
 
@@ -190,7 +190,7 @@ describe('Utility Functions', () => {
         isArchived: false,
         createdAt: new Date(),
         updatedAt: new Date(),
-        account: { _id: 'account1', name: 'Checking', type: 'checking', balance: 950, userId: 'user1', isArchived: false, createdAt: new Date(), updatedAt: new Date() },
+        account: { _id: 'account1', name: 'Checking', type: 'checking', balance: 950, initialBalance: 1000, userId: 'user1', isArchived: false, createdAt: new Date(), updatedAt: new Date() },
         category: { _id: 'category1', name: 'Groceries', color: '#000', icon: 'fas fa-shopping-cart', userId: 'user1', isArchived: false, createdAt: new Date(), updatedAt: new Date() }
       };
 
