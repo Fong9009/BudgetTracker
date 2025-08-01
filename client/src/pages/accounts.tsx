@@ -193,6 +193,20 @@ export default function Accounts() {
     return [...orderedAccounts, ...remainingAccounts];
   }, [accounts, accountOrder]);
 
+  const overallSummary = useMemo(() => {
+    const totalIncome = allTransactions
+      .filter(t => t.type === 'income' && t.category.name !== 'Transfer')
+      .reduce((sum, t) => sum + t.amount, 0);
+
+    const totalExpense = allTransactions
+      .filter(t => t.type === 'expense' && t.category.name !== 'Transfer')
+      .reduce((sum, t) => sum + t.amount, 0);
+
+    const totalBalance = accounts.reduce((sum, account) => sum + account.balance, 0);
+
+    return { totalIncome, totalExpense, totalBalance };
+  }, [allTransactions, accounts]);
+
   if (!isAuthenticated && !authLoading) {
     setLocation("/login");
     return null;
@@ -241,13 +255,31 @@ export default function Accounts() {
           {/* Total Balance Summary */}
           <Card className="mt-6">
             <CardContent className="pt-6">
-              <div className="text-center">
-                <h3 className="text-sm font-medium text-muted-foreground">
-                  Total Balance
-                </h3>
-                <p className={`text-3xl font-bold mt-2 ${accounts.reduce((sum, account) => sum + account.balance, 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  ${accounts.reduce((sum, account) => sum + account.balance, 0).toFixed(2)}
-                </p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground">
+                    Total Balance
+                  </h3>
+                  <p className={`text-3xl font-bold mt-2 ${overallSummary.totalBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {formatCurrency(overallSummary.totalBalance)}
+                  </p>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground">
+                    Total Income
+                  </h3>
+                  <p className="text-3xl font-bold mt-2 text-green-600">
+                    {formatCurrency(overallSummary.totalIncome)}
+                  </p>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground">
+                    Total Expense
+                  </h3>
+                  <p className="text-3xl font-bold mt-2 text-red-600">
+                    {formatCurrency(overallSummary.totalExpense)}
+                  </p>
+                </div>
               </div>
             </CardContent>
           </Card>
