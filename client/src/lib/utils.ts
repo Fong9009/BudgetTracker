@@ -1,6 +1,6 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
-import type { TransactionWithDetails } from "@shared/schema"
+import type { TransactionWithDetails, Account } from "@shared/schema"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -314,5 +314,39 @@ export function debounce<T extends (...args: any[]) => any>(
   return function(this: any, ...args: Parameters<T>) {
     clearTimeout(timeout);
     timeout = setTimeout(() => func.apply(this, args), wait);
+  };
+}
+
+export interface AccountFinancialSummary {
+  initialBalance: number;
+  totalIncome: number;
+  totalExpense: number;
+  netChange: number;
+  currentBalance: number;
+}
+
+export function calculateAccountFinancialSummary(
+  account: Account,
+  transactions: TransactionWithDetails[]
+): AccountFinancialSummary {
+  const initialBalance = account.balance || 0;
+  
+  const totalIncome = transactions
+    .filter(t => t.type === 'income')
+    .reduce((sum, t) => sum + t.amount, 0);
+    
+  const totalExpense = transactions
+    .filter(t => t.type === 'expense')
+    .reduce((sum, t) => sum + t.amount, 0);
+    
+  const netChange = totalIncome - totalExpense;
+  const currentBalance = initialBalance + netChange;
+  
+  return {
+    initialBalance,
+    totalIncome,
+    totalExpense,
+    netChange,
+    currentBalance
   };
 }

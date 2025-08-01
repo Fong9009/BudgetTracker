@@ -16,7 +16,7 @@ import { AddAccountModal } from "@/components/modals/add-account-modal";
 import { EditAccountModal } from "@/components/modals/edit-account-modal";
 import { TransferModal } from "@/components/modals/transfer-modal";
 import { SortableGrid } from "@/components/ui/sortable-grid";
-import { formatCurrency, getAccountTypeIcon, getAccountTypeColor, getTransactionTypeColor, highlightTransactionPrefix } from "@/lib/utils";
+import { formatCurrency, getAccountTypeIcon, getAccountTypeColor, getTransactionTypeColor, highlightTransactionPrefix, calculateAccountFinancialSummary } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -83,6 +83,32 @@ export default function Accounts() {
         return data.transactions || [];
       } catch (error) {
         console.error("Error fetching account transactions:", error);
+        return [];
+      }
+    },
+  });
+
+  // Fetch transactions for all accounts to calculate summaries
+  const { data: allTransactions = [], isLoading: allTransactionsLoading } = useQuery<TransactionWithDetails[]>({
+    queryKey: ["/api/transactions", "all"],
+    enabled: isAuthenticated && !authLoading,
+    queryFn: async () => {
+      const token = await getValidToken();
+      if (!token) return [];
+      
+      try {
+        const response = await fetch("/api/transactions", {
+          headers: { Authorization: `Bearer ${token}` },
+          credentials: "include",
+        });
+        
+        if (response.status === 401) return [];
+        if (!response.ok) throw new Error("Failed to fetch all transactions");
+        
+        const data = await response.json();
+        return data.transactions || [];
+      } catch (error) {
+        console.error("Error fetching all transactions:", error);
         return [];
       }
     },
@@ -309,6 +335,40 @@ export default function Accounts() {
                         </p>
                       </div>
 
+                      {/* Financial Summary */}
+                      {(() => {
+                        const accountTransactions = allTransactions.filter(t => t.accountId === account._id);
+                        const summary = calculateAccountFinancialSummary(account, accountTransactions);
+                        return (
+                          <div className="mt-3 p-3 bg-muted/30 rounded-lg">
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                              <div>
+                                <p className="text-muted-foreground">Initial Balance</p>
+                                <p className="font-medium">{formatCurrency(summary.initialBalance)}</p>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground">Current Balance</p>
+                                <p className="font-medium">{formatCurrency(summary.currentBalance)}</p>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground">Income</p>
+                                <p className="font-medium text-green-600">+{formatCurrency(summary.totalIncome)}</p>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground">Expense</p>
+                                <p className="font-medium text-red-600">-{formatCurrency(summary.totalExpense)}</p>
+                              </div>
+                              <div className="col-span-2">
+                                <p className="text-muted-foreground">Net Change</p>
+                                <p className={`font-medium ${summary.netChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                  {summary.netChange >= 0 ? '+' : ''}{formatCurrency(summary.netChange)}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+
                       {account.type === 'credit' && account.balance < 0 && (
                         <div className="mt-4 p-3 bg-orange-50 dark:bg-orange-950/20 rounded-lg">
                           <p className="text-xs text-orange-700 dark:text-orange-400">
@@ -377,6 +437,39 @@ export default function Accounts() {
                   </div>
                 </CardHeader>
                 <CardContent>
+                  {/* Financial Summary */}
+                  {(() => {
+                    const summary = calculateAccountFinancialSummary(viewingAccountTransactions, accountTransactions);
+                    return (
+                      <div className="mb-6 p-4 bg-muted/50 rounded-lg">
+                        <h3 className="text-sm font-semibold text-foreground mb-3">Financial Summary</h3>
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+                          <div>
+                            <p className="text-muted-foreground">Initial Balance</p>
+                            <p className="font-medium">{formatCurrency(summary.initialBalance)}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Total Income</p>
+                            <p className="font-medium text-green-600">+{formatCurrency(summary.totalIncome)}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Total Expense</p>
+                            <p className="font-medium text-red-600">-{formatCurrency(summary.totalExpense)}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Net Change</p>
+                            <p className={`font-medium ${summary.netChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {summary.netChange >= 0 ? '+' : ''}{formatCurrency(summary.netChange)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Current Balance</p>
+                            <p className="font-medium">{formatCurrency(summary.currentBalance)}</p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
                   {transactionsLoading ? (
                     <div className="space-y-4">
                       {[...Array(5)].map((_, i) => (
