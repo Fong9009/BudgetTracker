@@ -12,7 +12,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
-import csrf from "csurf";
+import { doubleCsrf } from "csrf-csrf";
 import cookieParser from "cookie-parser";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
@@ -146,9 +146,19 @@ app.use(express.urlencoded({
   limit: '10mb' 
 }));
 
-// CSRF protection temporarily disabled to fix functionality
-// TODO: Re-enable CSRF protection once the token system is working properly
-console.log('[CSRF] CSRF protection temporarily disabled for debugging');
+// CSRF protection configuration
+const { doubleCsrfProtection } = doubleCsrf({
+  getSecret: () => process.env.CSRF_SECRET || 'your-secret-key-here',
+  getSessionIdentifier: (req) => req.ip || 'unknown',
+});
+
+// Apply CSRF protection to all routes except health checks
+app.use((req, res, next) => {
+  if (req.path === '/health' || req.path === '/api/health') {
+    return next();
+  }
+  doubleCsrfProtection(req, res, next);
+});
 
 // Request logging middleware
 app.use((req, res, next) => {

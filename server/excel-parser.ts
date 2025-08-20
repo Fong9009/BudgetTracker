@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import * as ExcelJS from 'exceljs';
 import { ParsedTransaction, StatementParseResult } from './types';
 
 export class ExcelParser {
@@ -8,30 +8,30 @@ export class ExcelParser {
     return this.headerLine;
   }
 
-  static async parseExcelStatement(excelBuffer: Buffer, reverseLogic: boolean = false): Promise<StatementParseResult> {
+  static async parseExcelStatement(excelBuffer: Buffer | ArrayBuffer, reverseLogic: boolean = false): Promise<StatementParseResult> {
     const result: StatementParseResult = {
       transactions: [],
       errors: [],
     };
 
     try {
-      // Read the Excel file
-      const workbook = XLSX.read(excelBuffer, { type: 'buffer' });
+      // Read the Excel file using ExcelJS
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(excelBuffer as any);
       
-      if (workbook.SheetNames.length === 0) {
+      if (workbook.worksheets.length === 0) {
         result.errors.push('Excel file appears to be empty');
         return result;
       }
 
       // Try to find the sheet with transaction data
-      const sheetName = this.findTransactionSheet(workbook);
-      if (!sheetName) {
+      const worksheet = this.findTransactionSheet(workbook);
+      if (!worksheet) {
         result.errors.push('Could not find a sheet with transaction data');
         return result;
       }
 
-      const worksheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+      const jsonData = this.worksheetToJson(worksheet);
 
       if (jsonData.length < 2) {
         result.errors.push('Excel file has no data rows');
@@ -64,27 +64,39 @@ export class ExcelParser {
     return result;
   }
 
-  private static findTransactionSheet(workbook: XLSX.WorkBook): string | null {
+  private static findTransactionSheet(workbook: ExcelJS.Workbook): ExcelJS.Worksheet | null {
     // Look for common sheet names that might contain transactions
     const transactionKeywords = ['transaction', 'statement', 'activity', 'history', 'data'];
     
-    for (const sheetName of workbook.SheetNames) {
-      const lowerSheetName = sheetName.toLowerCase();
+    for (const worksheet of workbook.worksheets) {
+      const lowerSheetName = worksheet.name.toLowerCase();
       if (transactionKeywords.some(keyword => lowerSheetName.includes(keyword))) {
-        return sheetName;
+        return worksheet;
       }
     }
 
     // If no obvious sheet name, try the first sheet with data
-    for (const sheetName of workbook.SheetNames) {
-      const worksheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-      if (jsonData.length > 1) {
-        return sheetName;
+    for (const worksheet of workbook.worksheets) {
+      if (worksheet.rowCount > 1) {
+        return worksheet;
       }
     }
 
     return null;
+  }
+
+  private static worksheetToJson(worksheet: ExcelJS.Worksheet): any[][] {
+    const jsonData: any[][] = [];
+    
+    worksheet.eachRow((row, rowNumber) => {
+      const rowData: any[] = [];
+      row.eachCell((cell, colNumber) => {
+        rowData.push(cell.value);
+      });
+      jsonData.push(rowData);
+    });
+    
+    return jsonData;
   }
 
   private static convertToCSV(jsonData: any[][]): string {
