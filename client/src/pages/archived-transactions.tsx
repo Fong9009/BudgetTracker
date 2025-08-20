@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,10 +26,24 @@ export default function ArchivedTransactions() {
   const [restoreAllTransactions, setRestoreAllTransactions] = useState(false);
   const [deleteAllTransactions, setDeleteAllTransactions] = useState(false);
   const [permanentDeleteTransaction, setPermanentDeleteTransaction] = useState<string | null>(null);
-  const [transactionViewMode, setTransactionViewMode] = useState<'list' | 'table'>('table');
+  const [transactionViewMode, setTransactionViewMode] = useState<'list' | 'table'>(() => {
+    // Default to list view on mobile, table view on larger screens
+    return window.innerWidth < 768 ? 'list' : 'table';
+  });
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Handle responsive view mode changes
+  useEffect(() => {
+    const handleResize = () => {
+      const isMobile = window.innerWidth < 768;
+      setTransactionViewMode(isMobile ? 'list' : 'table');
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const { data: archivedTransactions = [], isLoading } = useQuery<TransactionWithDetails[]>({
     queryKey: ["/api/transactions/archived"],

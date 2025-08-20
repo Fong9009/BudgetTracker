@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,7 +15,7 @@ import {
 import { AddAccountModal } from "@/components/modals/add-account-modal";
 import { EditAccountModal } from "@/components/modals/edit-account-modal";
 import { TransferModal } from "@/components/modals/transfer-modal";
-import { SortableGrid } from "@/components/ui/sortable-grid";
+
 import { formatCurrency, getAccountTypeIcon, getAccountTypeColor, getTransactionTypeColor, highlightTransactionPrefix, calculateAccountFinancialSummary } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -35,10 +35,24 @@ export default function Accounts() {
   const [archiveAccount, setArchiveAccount] = useState<string | null>(null);
   const [accountOrder, setAccountOrder] = useState<string[]>([]);
   const [viewingAccountTransactions, setViewingAccountTransactions] = useState<Account | null>(null);
-  const [transactionViewMode, setTransactionViewMode] = useState<'list' | 'table'>('table');
+  const [transactionViewMode, setTransactionViewMode] = useState<'list' | 'table'>(() => {
+    // Default to list view on mobile, table view on larger screens
+    return window.innerWidth < 768 ? 'list' : 'table';
+  });
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Handle responsive view mode changes
+  useEffect(() => {
+    const handleResize = () => {
+      const isMobile = window.innerWidth < 768;
+      setTransactionViewMode(isMobile ? 'list' : 'table');
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const { data: accounts = [], isLoading } = useQuery<Account[]>({
     queryKey: ["/api/accounts"],
@@ -177,22 +191,6 @@ export default function Accounts() {
     setViewingAccountTransactions(null);
   };
 
-  const handleReorder = (newOrder: Account[]) => {
-    setAccountOrder(newOrder.map(account => account._id));
-  };
-
-  const sortedAccounts = useMemo(() => {
-    if (accountOrder.length === 0) return accounts;
-    
-    const orderedAccounts = accountOrder
-      .map(id => accounts.find(account => account._id === id))
-      .filter(Boolean) as Account[];
-    
-    const remainingAccounts = accounts.filter(account => !accountOrder.includes(account._id));
-    
-    return [...orderedAccounts, ...remainingAccounts];
-  }, [accounts, accountOrder]);
-
   const overallSummary = useMemo(() => {
     const totalIncome = allTransactions
       .filter(t => t.type === 'income' && t.category.name !== 'Transfer')
@@ -213,23 +211,23 @@ export default function Accounts() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8">
       <div className="max-w-7xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2">Accounts</h1>
-          <p className="text-muted-foreground">
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-3xl sm:text-4xl font-bold text-foreground mb-2">Accounts</h1>
+          <p className="text-base sm:text-lg text-muted-foreground">
             Manage your bank accounts, credit cards, and other financial accounts
           </p>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           {/* Header Actions */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4">
               <Button
                 variant="outline"
                 onClick={() => setLocation("/accounts/archived")}
-                className="flex items-center gap-2"
+                className="flex items-center justify-center gap-2 h-12 sm:h-9 text-base sm:text-sm font-medium rounded-lg"
               >
                 <Archive className="h-4 w-4" />
                 View Archive
@@ -237,14 +235,14 @@ export default function Accounts() {
               <Button
                 onClick={() => setShowTransferModal(true)}
                 variant="outline"
-                className="border-dashed"
+                className="border-dashed h-12 sm:h-9 text-base sm:text-sm font-medium rounded-lg"
               >
                 <ArrowRightLeft className="h-4 w-4" />
                 Transfer
               </Button>
               <Button
                 onClick={() => setShowAddAccount(true)}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground h-12 sm:h-9 text-base sm:text-sm font-medium rounded-lg"
               >
                 <Plus className="mr-2 h-4 w-4" />
                 Add Account
@@ -253,50 +251,50 @@ export default function Accounts() {
           </div>
 
           {/* Total Balance Summary */}
-          <Card className="mt-6">
-            <CardContent className="pt-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
-                <div>
-                  <h3 className="text-sm font-medium text-muted-foreground">
-                    Total Balance
-                  </h3>
-                  <p className={`text-3xl font-bold mt-2 ${overallSummary.totalBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {formatCurrency(overallSummary.totalBalance)}
-                  </p>
-                </div>
-                <div>
-                  <h3 className="text-sm font-medium text-muted-foreground">
-                    Total Income
-                  </h3>
-                  <p className="text-3xl font-bold mt-2 text-green-600">
-                    {formatCurrency(overallSummary.totalIncome)}
-                  </p>
-                </div>
-                <div>
-                  <h3 className="text-sm font-medium text-muted-foreground">
-                    Total Expense
-                  </h3>
-                  <p className="text-3xl font-bold mt-2 text-red-600">
-                    {formatCurrency(overallSummary.totalExpense)}
-                  </p>
-                </div>
-              </div>
+          <Card className="mt-4 sm:mt-6">
+            <CardContent className="pt-4 sm:pt-6">
+                                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 text-center">
+                          <div>
+                            <h3 className="text-sm sm:text-base font-medium text-muted-foreground">
+                              Total Balance
+                            </h3>
+                            <p className={`text-3xl sm:text-4xl font-bold mt-2 ${overallSummary.totalBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {formatCurrency(overallSummary.totalBalance)}
+                            </p>
+                          </div>
+                          <div>
+                            <h3 className="text-sm sm:text-base font-medium text-muted-foreground">
+                              Total Income
+                            </h3>
+                            <p className="text-3xl sm:text-4xl font-bold mt-2 text-green-600">
+                              {formatCurrency(overallSummary.totalIncome)}
+                            </p>
+                          </div>
+                          <div>
+                            <h3 className="text-sm sm:text-base font-medium text-muted-foreground">
+                              Total Expense
+                            </h3>
+                            <p className="text-3xl sm:text-4xl font-bold mt-2 text-red-600">
+                              {formatCurrency(overallSummary.totalExpense)}
+                            </p>
+                          </div>
+                        </div>
             </CardContent>
           </Card>
 
           {/* Accounts Grid */}
-          <div className="mt-8">
+          <div className="mt-6 sm:mt-8">
             {isLoading ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
                 {[...Array(6)].map((_, i) => (
                   <Card key={i} className="animate-pulse">
-                    <CardContent className="pt-6">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center space-x-4">
-                          <div className="w-12 h-12 bg-muted rounded-lg" />
+                    <CardContent className="pt-4 sm:pt-6">
+                      <div className="flex items-center justify-between mb-3 sm:mb-4">
+                        <div className="flex items-center space-x-3 sm:space-x-4">
+                          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-muted rounded-lg" />
                           <div className="space-y-2">
-                            <div className="h-4 bg-muted rounded w-24" />
-                            <div className="h-3 bg-muted rounded w-16" />
+                            <div className="h-4 bg-muted rounded w-20 sm:w-24" />
+                            <div className="h-3 bg-muted rounded w-14 sm:w-16" />
                           </div>
                         </div>
                         <div className="flex space-x-2">
@@ -305,52 +303,47 @@ export default function Accounts() {
                         </div>
                       </div>
                       <div className="space-y-2">
-                        <div className="h-6 bg-muted rounded w-20" />
-                        <div className="h-3 bg-muted rounded w-24" />
+                        <div className="h-5 sm:h-6 bg-muted rounded w-20 sm:w-24" />
+                        <div className="h-3 bg-muted rounded w-20 sm:w-24" />
                       </div>
                     </CardContent>
                   </Card>
                 ))}
               </div>
             ) : accounts.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="w-16 h-16 mx-auto bg-muted rounded-full flex items-center justify-center mb-4">
-                  <i className="fas fa-wallet text-muted-foreground text-xl" />
+              <div className="text-center py-8 sm:py-12">
+                <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto bg-muted rounded-full flex items-center justify-center mb-3 sm:mb-4">
+                  <i className="fas fa-wallet text-muted-foreground text-lg sm:text-xl" />
                 </div>
-                <p className="text-lg font-medium text-foreground mb-2">
+                <p className="text-lg sm:text-xl font-medium text-foreground mb-2">
                   No accounts yet
                 </p>
-                <p className="text-muted-foreground mb-4">
+                <p className="text-base sm:text-lg text-muted-foreground mb-4 px-4">
                   Add your first account to start tracking your finances
                 </p>
                 <Button
                   onClick={() => setShowAddAccount(true)}
-                  className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground h-12 sm:h-9 text-base sm:text-sm font-medium rounded-lg"
                 >
                   <Plus className="mr-2 h-4 w-4" />
                   Add Account
                 </Button>
               </div>
             ) : (
-              <SortableGrid
-                items={sortedAccounts}
-                onReorder={handleReorder}
-                className="md:grid-cols-2 lg:grid-cols-3"
-                getId={(account) => account._id}
-              >
-                {(account) => (
-                  <Card className="hover:shadow-md transition-shadow relative">
-                    <CardContent className="pt-6 relative">
-                      <div className="flex items-center justify-between mb-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                {accounts.map((account) => (
+                  <Card key={account._id} className="hover:shadow-md transition-shadow relative">
+                    <CardContent className="pt-4 sm:pt-6 relative">
+                      <div className="flex items-center justify-between mb-3 sm:mb-4">
                         <div className="flex items-center">
-                          <div className={`w-12 h-12 ${getAccountTypeColor(account.type)} rounded-lg flex items-center justify-center`}>
-                            <i className={`${getAccountTypeIcon(account.type)} text-white text-lg`} />
+                          <div className={`w-10 h-10 sm:w-12 sm:h-12 ${getAccountTypeColor(account.type)} rounded-lg flex items-center justify-center`}>
+                            <i className={`${getAccountTypeIcon(account.type)} text-white text-base sm:text-lg`} />
                           </div>
-                          <div className="ml-4">
-                            <h3 className="text-lg font-semibold text-foreground">
+                          <div className="ml-3 sm:ml-4">
+                            <h3 className="text-lg sm:text-xl font-semibold text-foreground">
                               {account.name}
                             </h3>
-                            <p className="text-sm text-muted-foreground capitalize">
+                            <p className="text-sm sm:text-base text-muted-foreground capitalize">
                               {account.type} Account
                             </p>
                           </div>
@@ -365,17 +358,17 @@ export default function Accounts() {
                           <>
                             <div className="space-y-2">
                               <div className="flex justify-between items-center">
-                                <span className="text-sm text-muted-foreground">Current Balance</span>
+                                <span className="text-xs sm:text-sm text-muted-foreground">Current Balance</span>
                               </div>
-                              <p className={`text-2xl font-bold ${
+                              <p className={`text-2xl sm:text-3xl font-bold ${
                                 summary.currentBalance >= 0 ? 'text-foreground' : 'text-red-600'
                               }`}>
                                 {formatCurrency(summary.currentBalance)}
                               </p>
                             </div>
 
-                            <div className="mt-3 p-3 bg-muted/30 rounded-lg">
-                              <div className="grid grid-cols-2 gap-2 text-xs">
+                            <div className="mt-3 p-2 sm:p-3 bg-muted/30 rounded-lg">
+                              <div className="grid grid-cols-2 gap-1 sm:gap-2 text-sm">
                                 <div>
                                   <p className="text-muted-foreground">Initial Balance</p>
                                   <p className="font-medium">{formatCurrency(summary.initialBalance)}</p>
@@ -408,12 +401,12 @@ export default function Accounts() {
                         );
                       })()}
 
-                      <div className="mt-4 pt-4 border-t border-border space-y-3">
+                      <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-border space-y-2 sm:space-y-3">
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => handleViewTransactions(account)}
-                          className="w-full"
+                          className="w-full h-10 sm:h-9 text-base sm:text-sm font-medium rounded-lg"
                         >
                           <Receipt className="h-4 w-4 mr-2" />
                           View Transactions
@@ -424,7 +417,7 @@ export default function Accounts() {
                             variant="ghost" 
                             size="sm" 
                             onClick={() => handleEdit(account)}
-                            className="flex-1"
+                            className="flex-1 h-10 sm:h-9 text-base sm:text-sm font-medium rounded-lg"
                           >
                             <Edit2 className="h-4 w-4 mr-2" />
                             Edit
@@ -433,7 +426,7 @@ export default function Accounts() {
                             variant="ghost"
                             size="sm"
                             onClick={() => setArchiveAccount(account._id)}
-                            className="flex-1 text-orange-600 hover:text-orange-700"
+                            className="flex-1 h-10 sm:h-9 text-base sm:text-sm font-medium rounded-lg text-orange-600 hover:text-orange-700"
                           >
                             <Archive className="h-4 w-4 mr-2" />
                             Archive
@@ -442,8 +435,8 @@ export default function Accounts() {
                       </div>
                     </CardContent>
                   </Card>
-                )}
-              </SortableGrid>
+                ))}
+              </div>
             )}
           </div>
 
@@ -453,18 +446,18 @@ export default function Accounts() {
               <Card>
                 <CardHeader>
                   <div className="flex items-center justify-between">
-                    <CardTitle className="flex items-center gap-2">
+                    <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
                       <Receipt className="h-5 w-5" />
                       {viewingAccountTransactions.name} - Transactions
                     </CardTitle>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-2">
                       {/* View Mode Toggle */}
                       <div className="flex items-center border rounded-md">
                         <Button
                           variant={transactionViewMode === 'list' ? 'default' : 'ghost'}
                           size="sm"
                           onClick={() => setTransactionViewMode('list')}
-                          className="rounded-r-none"
+                          className="rounded-r-none h-10 sm:h-8 text-base sm:text-sm font-medium"
                         >
                           <List className="h-4 w-4" />
                         </Button>
@@ -472,7 +465,7 @@ export default function Accounts() {
                           variant={transactionViewMode === 'table' ? 'default' : 'ghost'}
                           size="sm"
                           onClick={() => setTransactionViewMode('table')}
-                          className="rounded-l-none"
+                          className="rounded-l-none h-10 sm:h-8 text-base sm:text-sm font-medium"
                         >
                           <Table className="h-4 w-4" />
                         </Button>
@@ -481,6 +474,7 @@ export default function Accounts() {
                         variant="outline"
                         size="sm"
                         onClick={handleCloseTransactions}
+                        className="h-10 sm:h-8 text-base sm:text-sm font-medium rounded-lg"
                       >
                         <X className="h-4 w-4 mr-2" />
                         Close
@@ -493,9 +487,9 @@ export default function Accounts() {
                   {(() => {
                     const summary = calculateAccountFinancialSummary(viewingAccountTransactions, accountTransactions);
                     return (
-                      <div className="mb-6 p-4 bg-muted/50 rounded-lg">
-                        <h3 className="text-sm font-semibold text-foreground mb-3">Financial Summary</h3>
-                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+                      <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-muted/50 rounded-lg">
+                        <h3 className="text-base sm:text-lg font-semibold text-foreground mb-3">Financial Summary</h3>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-4 text-sm sm:text-base">
                           <div>
                             <p className="text-muted-foreground">Initial Balance</p>
                             <p className="font-medium">{formatCurrency(summary.initialBalance)}</p>
@@ -508,13 +502,13 @@ export default function Accounts() {
                             <p className="text-muted-foreground">Total Expense</p>
                             <p className="font-medium text-red-600">-{formatCurrency(summary.totalExpense)}</p>
                           </div>
-                          <div>
+                          <div className="col-span-2 sm:col-span-1">
                             <p className="text-muted-foreground">Net Change</p>
                             <p className={`font-medium ${summary.netChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                               {summary.netChange >= 0 ? '+' : ''}{formatCurrency(summary.netChange)}
                             </p>
                           </div>
-                          <div>
+                          <div className="col-span-2 sm:col-span-1">
                             <p className="text-muted-foreground">Current Balance</p>
                             <p className="font-medium">{formatCurrency(summary.currentBalance)}</p>
                           </div>
@@ -524,49 +518,49 @@ export default function Accounts() {
                   })()}
                   
                   {transactionsLoading ? (
-                    <div className="space-y-4">
+                    <div className="space-y-3 sm:space-y-4">
                       {[...Array(5)].map((_, i) => (
-                        <div key={i} className="animate-pulse flex items-center justify-between p-4 border-b border-border">
-                          <div className="flex items-center space-x-4">
-                            <div className="w-10 h-10 bg-muted rounded-lg" />
+                        <div key={i} className="animate-pulse flex items-center justify-between p-3 sm:p-4 border-b border-border">
+                          <div className="flex items-center space-x-3 sm:space-x-4">
+                            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-muted rounded-lg" />
                             <div className="space-y-2">
-                              <div className="h-4 bg-muted rounded w-32" />
-                              <div className="h-3 bg-muted rounded w-24" />
+                              <div className="h-4 bg-muted rounded w-24 sm:w-32" />
+                              <div className="h-3 bg-muted rounded w-20 sm:w-24" />
                             </div>
                           </div>
                           <div className="space-y-2">
-                            <div className="h-4 bg-muted rounded w-20" />
-                            <div className="h-3 bg-muted rounded w-16" />
+                            <div className="h-4 bg-muted rounded w-16 sm:w-20" />
+                            <div className="h-3 bg-muted rounded w-12 sm:w-16" />
                           </div>
                         </div>
                       ))}
                     </div>
                   ) : accountTransactions.length === 0 ? (
-                    <div className="text-center py-8">
-                      <p className="text-muted-foreground">No transactions found for this account.</p>
+                    <div className="text-center py-6 sm:py-8">
+                      <p className="text-sm sm:text-base text-muted-foreground px-4">No transactions found for this account.</p>
                     </div>
                   ) : transactionViewMode === 'list' ? (
                     <div className="space-y-0 divide-y divide-border">
                       {accountTransactions.map((transaction) => (
-                        <div key={transaction._id} className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors">
+                        <div key={transaction._id} className="flex items-center justify-between p-3 sm:p-4 hover:bg-muted/50 transition-colors">
                           <div className="flex items-center flex-1">
                             <div className="flex-shrink-0">
                               <div
-                                className="w-10 h-10 rounded-lg flex items-center justify-center"
+                                className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center"
                                 style={{ backgroundColor: transaction.category.color, color: 'white' }}
                               >
-                                <i className={`${transaction.category.icon} text-sm`} />
+                                <i className={`${transaction.category.icon} text-xs sm:text-sm`} />
                               </div>
                             </div>
-                            <div className="ml-4 flex-1">
+                            <div className="ml-3 sm:ml-4 flex-1">
                               <div className="flex items-center justify-between">
                                 <div>
-                                  <p className="text-sm font-medium text-foreground">
+                                  <p className="text-sm sm:text-base font-medium text-foreground">
                                     {(() => {
                                       const result = highlightTransactionPrefix(transaction.description);
                                       return result.hasPrefix ? (
                                         <>
-                                          <span className={`${result.color} font-semibold px-1.5 py-0.5 rounded text-xs`}>
+                                          <span className={`${result.color} font-semibold px-1 sm:px-1.5 py-0.5 rounded text-xs`}>
                                             {result.prefix}
                                           </span>
                                           {result.rest}
@@ -576,15 +570,15 @@ export default function Accounts() {
                                       );
                                     })()}
                                   </p>
-                                  <p className="text-sm text-muted-foreground">
+                                  <p className="text-sm sm:text-base text-muted-foreground">
                                     {transaction.category.name}
                                   </p>
                                 </div>
                                 <div className="text-right">
-                                  <p className={`text-sm font-medium ${getTransactionTypeColor(transaction.type)}`}>
+                                  <p className={`text-sm sm:text-base font-medium ${getTransactionTypeColor(transaction.type)}`}>
                                     {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
                                   </p>
-                                  <p className="text-sm text-muted-foreground">
+                                  <p className="text-sm sm:text-base text-muted-foreground">
                                     {new Date(transaction.date).toLocaleDateString()}
                                   </p>
                                 </div>
@@ -599,12 +593,12 @@ export default function Accounts() {
                       <table className="w-full">
                         <thead>
                           <tr className="border-b border-border">
-                            <th className="text-left p-3 text-sm font-medium text-muted-foreground w-12">#</th>
-                            <th className="text-left p-3 text-sm font-medium text-muted-foreground">Date</th>
-                            <th className="text-left p-3 text-sm font-medium text-muted-foreground">Transaction Details</th>
-                            <th className="text-right p-3 text-sm font-medium text-muted-foreground">Money In</th>
-                            <th className="text-right p-3 text-sm font-medium text-muted-foreground">Money Out</th>
-                            <th className="text-right p-3 text-sm font-medium text-muted-foreground">Balance</th>
+                            <th className="text-left p-2 sm:p-3 text-xs sm:text-sm font-medium text-muted-foreground w-8 sm:w-12">#</th>
+                            <th className="text-left p-2 sm:p-3 text-xs sm:text-sm font-medium text-muted-foreground">Date</th>
+                            <th className="text-left p-2 sm:p-3 text-xs sm:text-sm font-medium text-muted-foreground">Transaction Details</th>
+                            <th className="text-right p-2 sm:p-3 text-xs sm:text-sm font-medium text-muted-foreground">Money In</th>
+                            <th className="text-right p-2 sm:p-3 text-xs sm:text-sm font-medium text-muted-foreground">Money Out</th>
+                            <th className="text-right p-2 sm:p-3 text-xs sm:text-sm font-medium text-muted-foreground">Balance</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -614,26 +608,26 @@ export default function Accounts() {
                             
                             return (
                               <tr key={transaction._id} className="border-b border-border hover:bg-muted/50 transition-colors">
-                                <td className="p-3 text-sm text-muted-foreground">{index + 1}</td>
-                                <td className="p-3 text-sm text-muted-foreground">
+                                <td className="p-2 sm:p-3 text-xs sm:text-sm text-muted-foreground">{index + 1}</td>
+                                <td className="p-2 sm:p-3 text-xs sm:text-sm text-muted-foreground">
                                   {format(new Date(transaction.date), 'dd/MM/yyyy')}
                                 </td>
-                                <td className="p-3">
+                                <td className="p-2 sm:p-3">
                                   <div className="space-y-1">
                                     <div className="flex items-start gap-2">
                                       <div
-                                        className="w-6 h-6 rounded flex items-center justify-center flex-shrink-0 mt-0.5"
+                                        className="w-5 h-5 sm:w-6 sm:h-6 rounded flex items-center justify-center flex-shrink-0 mt-0.5"
                                         style={{ backgroundColor: transaction.category.color, color: 'white' }}
                                       >
                                         <i className={`${transaction.category.icon} text-xs`} />
                                       </div>
                                       <div className="flex-1 min-w-0">
-                                        <p className="text-sm text-foreground">
+                                        <p className="text-sm sm:text-base text-foreground">
                                           {(() => {
                                             const result = highlightTransactionPrefix(transaction.description);
                                             return result.hasPrefix ? (
                                               <>
-                                                <span className={`${result.color} font-semibold px-1.5 py-0.5 rounded text-xs`}>
+                                                <span className={`${result.color} font-semibold px-1 sm:px-1.5 py-0.5 rounded text-xs`}>
                                                   {result.prefix}
                                                 </span>
                                                 {result.rest}
@@ -645,7 +639,7 @@ export default function Accounts() {
                                         </p>
                                       </div>
                                     </div>
-                                    <p className="text-xs text-muted-foreground pl-8">
+                                    <p className="text-sm text-muted-foreground pl-6 sm:pl-8">
                                       {transaction.category.name}
                                     </p>
                                   </div>

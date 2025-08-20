@@ -183,74 +183,74 @@ export default function Dashboard() {
 
   return (
     <div className="flex-1 relative overflow-y-auto focus:outline-none">
-      <div className="py-6">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
+      <div className="py-4 sm:py-6">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8">
           {/* Page header */}
-          <div className="mb-8">
-            <h2 className="text-2xl font-semibold text-foreground sm:truncate">
+          <div className="mb-6 sm:mb-8">
+            <h2 className="text-xl sm:text-2xl font-semibold text-foreground sm:truncate">
               Dashboard
             </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
               Overview of your financial activity
             </p>
           </div>
 
           {/* Quick Actions */}
-          <div className="mt-8">
-            <div className="flex items-center gap-2 mb-4">
+          <div className="mt-6 sm:mt-8">
+            <div className="flex items-center gap-2 mb-3 sm:mb-4">
               <Zap className="h-5 w-5 text-primary" />
-              <h3 className="text-lg font-medium text-foreground">Quick Actions</h3>
+              <h3 className="text-base sm:text-lg font-medium text-foreground">Quick Actions</h3>
             </div>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-3 lg:grid-cols-5">
               <Button
                 variant="outline"
-                className="h-20 flex-col gap-2 hover:bg-primary/5 hover:border-primary/20"
+                className="h-16 sm:h-20 flex-col gap-1 sm:gap-2 hover:bg-primary/5 hover:border-primary/20 p-2"
                 onClick={() => setShowAddTransaction(true)}
               >
-                <Plus className="h-6 w-6 text-primary" />
-                <span className="text-sm font-medium">Add Transaction</span>
+                <Plus className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
+                <span className="text-xs sm:text-sm font-medium leading-tight">Add Transaction</span>
               </Button>
               <Button
                 variant="outline"
-                className="h-20 flex-col gap-2 hover:bg-green-50 hover:border-green-200 dark:hover:bg-green-950 dark:hover:border-green-800"
+                className="h-16 sm:h-20 flex-col gap-1 sm:gap-2 hover:bg-green-50 hover:border-green-200 dark:hover:bg-green-950 dark:hover:border-green-800 p-2"
                 onClick={() => setShowTransferModal(true)}
               >
-                <ArrowRightLeft className="h-6 w-6 text-green-600 dark:text-green-400" />
-                <span className="text-sm font-medium">Transfer Money</span>
+                <ArrowRightLeft className="h-5 w-5 sm:h-6 sm:w-6 text-green-600 dark:text-green-400" />
+                <span className="text-xs sm:text-sm font-medium leading-tight">Transfer Money</span>
               </Button>
               <Button
                 variant="outline"
-                className="h-20 flex-col gap-2 hover:bg-blue-50 hover:border-blue-200 dark:hover:bg-blue-950 dark:hover:border-blue-800"
+                className="h-16 sm:h-20 flex-col gap-1 sm:gap-2 hover:bg-blue-50 hover:border-blue-200 dark:hover:bg-blue-950 dark:hover:border-blue-800 p-2"
                 onClick={() => setShowAddAccount(true)}
               >
-                <CreditCard className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-                <span className="text-sm font-medium">Add Account</span>
+                <CreditCard className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600 dark:text-blue-400" />
+                <span className="text-xs sm:text-sm font-medium leading-tight">Add Account</span>
               </Button>
               <Button
                 variant="outline"
-                className="h-20 flex-col gap-2 hover:bg-purple-50 hover:border-purple-200 dark:hover:bg-purple-950 dark:hover:border-purple-800"
+                className="h-16 sm:h-20 flex-col gap-1 sm:gap-2 hover:bg-purple-50 hover:border-purple-200 dark:hover:bg-purple-950 dark:hover:border-purple-800 p-2"
                 onClick={() => setShowExportModal(true)}
               >
-                <Download className="h-6 w-6 text-purple-600 dark:text-purple-400" />
-                <span className="text-sm font-medium">Export Data</span>
+                <Download className="h-5 w-5 sm:h-6 sm:w-6 text-purple-600 dark:text-purple-400" />
+                <span className="text-xs sm:text-sm font-medium leading-tight">Export Data</span>
               </Button>
               <Button
                 variant="outline"
-                className="h-20 flex-col gap-2 hover:bg-orange-50 hover:border-orange-200 dark:hover:bg-orange-950 dark:hover:border-orange-800"
+                className="h-16 sm:h-20 flex-col gap-1 sm:gap-2 hover:bg-orange-50 hover:border-orange-200 dark:hover:bg-orange-950 dark:hover:border-orange-800 p-2"
                 onClick={handleInstallApp}
                 disabled={isInstalling}
               >
-                <Smartphone className="h-6 w-6 text-orange-600 dark:text-orange-400" />
-                <span className="text-sm font-medium">
-                  {isInstallable ? (isInstalling ? 'Installing...' : 'Install App') : 'Installed'}
+                <Smartphone className="h-5 w-5 sm:h-6 sm:w-6 text-orange-600 dark:text-orange-400" />
+                <span className="text-xs sm:text-sm font-medium leading-tight">
+                  {isInstalling ? 'Installing...' : (isInstallable ? 'Install App' : 'Installed')}
                 </span>
               </Button>
             </div>
           </div>
 
           {/* Analytics Cards */}
-          <div className="mt-8">
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-6 sm:mt-8">
+            <div className="grid grid-cols-1 gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-4">
               <StatCard
                 title="Total Balance"
                 value={analytics ? formatCurrency(analytics.totalBalance) : "$0.00"}
@@ -281,7 +281,7 @@ export default function Dashboard() {
           </div>
 
           {/* Accounts Overview */}
-          <div className="mt-8">
+          <div className="mt-6 sm:mt-8">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Accounts Overview</CardTitle>
@@ -297,7 +297,7 @@ export default function Dashboard() {
               </CardHeader>
               <CardContent>
                 {accountsLoading ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                     {[...Array(3)].map((_, i) => (
                       <div key={i} className="animate-pulse flex items-center justify-between p-4 bg-muted/50 rounded-lg">
                         <div className="flex items-center space-x-4">
@@ -326,7 +326,7 @@ export default function Dashboard() {
                     </Button>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                     {(accounts || []).map((account) => (
                       <div
                         key={account._id}
@@ -362,7 +362,7 @@ export default function Dashboard() {
           </div>
 
           {/* Recent Transactions and Transfers */}
-          <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div className="mt-6 sm:mt-8 grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2">
             {/* Recent Transactions */}
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
@@ -546,7 +546,7 @@ export default function Dashboard() {
 
           {/* Category Spending */}
           {filteredCategorySpending.length > 0 && (
-            <div className="mt-8">
+            <div className="mt-6 sm:mt-8">
               <Card>
                 <CardHeader>
                   <CardTitle>Spending by Category (This Month)</CardTitle>

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,6 +26,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AddTransactionModal } from "@/components/modals/add-transaction-modal";
 import { TransferModal } from "@/components/modals/transfer-modal";
 import { ExportModal } from "@/components/export/export-modal";
@@ -48,6 +49,7 @@ export default function Transactions() {
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showUploadStatement, setShowUploadStatement] = useState(false);
+  const [showTransactionDetails, setShowTransactionDetails] = useState<TransactionOrTransfer | null>(null);
   const [selectedTransaction, setSelectedTransaction] = useState<TransactionWithDetails | null>(null);
   const [archiveTransaction, setArchiveTransaction] = useState<string | null>(null);
   const [archiveAllTransactions, setArchiveAllTransactions] = useState(false);
@@ -66,10 +68,24 @@ export default function Transactions() {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [showFilters, setShowFilters] = useState(false);
   const [showQuickFilters, setShowQuickFilters] = useState(false);
-  const [transactionViewMode, setTransactionViewMode] = useState<'list' | 'table'>('table');
+  const [transactionViewMode, setTransactionViewMode] = useState<'list' | 'table'>(() => {
+    // Default to list view on mobile, table view on larger screens
+    return window.innerWidth < 768 ? 'list' : 'table';
+  });
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Handle responsive view mode changes
+  useEffect(() => {
+    const handleResize = () => {
+      const isMobile = window.innerWidth < 768;
+      setTransactionViewMode(isMobile ? 'list' : 'table');
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Build query parameters
   const queryParams = new URLSearchParams();
@@ -390,64 +406,68 @@ export default function Transactions() {
   };
 
   return (
-    <div className="flex-1 relative overflow-y-auto focus:outline-none">
-      <div className="py-6">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
+          <div className="flex-1 relative overflow-y-auto focus:outline-none">
+        <div className="py-4 sm:py-6">
+          <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 overflow-x-hidden w-full">
           {/* Page header */}
-          <div className="md:flex md:items-center md:justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 sm:gap-0">
             <div className="flex-1 min-w-0">
-              <h2 className="text-2xl font-semibold text-foreground sm:truncate">
+              <h2 className="text-2xl sm:text-3xl font-semibold text-foreground sm:truncate">
                 Transactions
               </h2>
-              <p className="mt-1 text-sm text-muted-foreground">
+              <p className="mt-1 text-sm sm:text-base text-muted-foreground">
                 Manage all your financial transactions
               </p>
             </div>
-            <div className="mt-4 flex md:mt-0 md:ml-4 space-x-2">
-              <Button
-                variant="outline"
-                onClick={() => setShowExportModal(true)}
-                className="flex items-center gap-2"
-              >
-                <Download className="h-4 w-4" />
-                Export
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => setShowTransferModal(true)}
-                disabled={accounts.length < 2}
-                className="flex items-center gap-2"
-              >
-                <ArrowRightLeft className="h-4 w-4" />
-                Transfer
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => setShowUploadStatement(true)}
-                className="flex items-center gap-2"
-              >
-                <Upload className="h-4 w-4" />
-                Upload Statement
-              </Button>
-              <Button
-                onClick={() => setShowAddTransaction(true)}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground"
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Add Transaction
-              </Button>
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-2">
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowExportModal(true)}
+                  className="flex items-center gap-2 h-10 sm:h-9 text-sm font-medium rounded-lg flex-1 sm:flex-none"
+                >
+                  <Download className="h-4 w-4" />
+                  <span className="hidden sm:inline">Export</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowTransferModal(true)}
+                  disabled={accounts.length < 2}
+                  className="flex items-center gap-2 h-10 sm:h-9 text-sm font-medium rounded-lg flex-1 sm:flex-none"
+                >
+                  <ArrowRightLeft className="h-4 w-4" />
+                  <span className="hidden sm:inline">Transfer</span>
+                </Button>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowUploadStatement(true)}
+                  className="flex items-center gap-2 h-10 sm:h-9 text-sm font-medium rounded-lg flex-1 sm:flex-none"
+                >
+                  <Upload className="h-4 w-4" />
+                  <span className="hidden sm:inline">Upload</span>
+                </Button>
+                <Button
+                  onClick={() => setShowAddTransaction(true)}
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground h-10 sm:h-9 text-sm font-medium rounded-lg flex-1 sm:flex-none"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add
+                </Button>
+              </div>
             </div>
           </div>
 
           {/* Filters */}
-          <Card className="mt-6">
+          <Card className="mt-4 sm:mt-6">
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
+                <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
                   <Filter className="h-5 w-5" />
                   Filter & Search Transactions
                   {hasActiveFilters && (
-                    <Badge variant="secondary" className="ml-2">
+                    <Badge variant="secondary" className="ml-2 text-xs sm:text-sm">
                       {groupedTransactions.length} results
                     </Badge>
                   )}
@@ -457,10 +477,10 @@ export default function Transactions() {
                     variant="outline"
                     size="sm"
                     onClick={() => setShowFilters(!showFilters)}
-                    className="flex items-center gap-2"
+                    className="flex items-center gap-2 h-10 sm:h-8 text-sm font-medium rounded-lg"
                   >
                     <SlidersHorizontal className="h-4 w-4" />
-                    Advanced
+                    <span className="hidden sm:inline">Advanced</span>
                     {getActiveFilterCount() > 0 && (
                       <Badge variant="destructive" className="h-5 w-5 p-0 flex items-center justify-center text-xs">
                         {getActiveFilterCount()}
@@ -469,7 +489,7 @@ export default function Transactions() {
                     <ChevronDown className={cn("h-4 w-4 transition-transform", showFilters && "rotate-180")} />
                   </Button>
                   {hasActiveFilters && (
-                    <Button variant="outline" size="sm" onClick={clearAllFilters}>
+                    <Button variant="outline" size="sm" onClick={clearAllFilters} className="h-10 sm:h-8 text-sm font-medium rounded-lg">
                       <X className="h-4 w-4 mr-1" />
                       Clear All
                     </Button>
@@ -479,17 +499,17 @@ export default function Transactions() {
             </CardHeader>
             <CardContent>
               {/* Quick Filter Presets */}
-              <div className="mb-6">
+              <div className="mb-4 sm:mb-6">
                 <div className="flex items-center gap-2 mb-3">
                   <Zap className="h-4 w-4 text-primary" />
-                  <h4 className="text-sm font-medium">Quick Filters</h4>
+                  <h4 className="text-sm sm:text-base font-medium">Quick Filters</h4>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-1 sm:gap-2">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => applyQuickFilter("today")}
-                    className="h-8 text-xs"
+                    className="h-10 sm:h-8 text-xs sm:text-sm font-medium rounded-lg"
                   >
                     <Clock className="h-3 w-3 mr-1" />
                     Today
@@ -498,7 +518,7 @@ export default function Transactions() {
                     variant="outline"
                     size="sm"
                     onClick={() => applyQuickFilter("this-week")}
-                    className="h-8 text-xs"
+                    className="h-10 sm:h-8 text-xs sm:text-sm font-medium rounded-lg"
                   >
                     This Week
                   </Button>
@@ -506,7 +526,7 @@ export default function Transactions() {
                     variant="outline"
                     size="sm"
                     onClick={() => applyQuickFilter("this-month")}
-                    className="h-8 text-xs"
+                    className="h-10 sm:h-8 text-xs sm:text-sm font-medium rounded-lg"
                   >
                     This Month
                   </Button>
@@ -514,7 +534,7 @@ export default function Transactions() {
                     variant="outline"
                     size="sm"
                     onClick={() => applyQuickFilter("last-30-days")}
-                    className="h-8 text-xs"
+                    className="h-10 sm:h-8 text-xs sm:text-sm font-medium rounded-lg"
                   >
                     Last 30 Days
                   </Button>
@@ -522,7 +542,7 @@ export default function Transactions() {
                     variant="outline"
                     size="sm"
                     onClick={() => applyQuickFilter("last-month")}
-                    className="h-8 text-xs"
+                    className="h-10 sm:h-8 text-xs sm:text-sm font-medium rounded-lg"
                   >
                     Last Month
                   </Button>
@@ -530,7 +550,7 @@ export default function Transactions() {
                     variant="outline"
                     size="sm"
                     onClick={() => applyQuickFilter("high-amounts")}
-                    className="h-8 text-xs"
+                    className="h-10 sm:h-8 text-xs sm:text-sm font-medium rounded-lg"
                   >
                     <TrendingUp className="h-3 w-3 mr-1" />
                     High Amounts
@@ -539,7 +559,7 @@ export default function Transactions() {
                     variant="outline"
                     size="sm"
                     onClick={() => applyQuickFilter("recent-transfers")}
-                    className="h-8 text-xs"
+                    className="h-10 sm:h-8 text-xs sm:text-sm font-medium rounded-lg"
                   >
                     <ArrowRightLeft className="h-3 w-3 mr-1" />
                     Recent Transfers
@@ -548,7 +568,7 @@ export default function Transactions() {
                     variant="outline"
                     size="sm"
                     onClick={() => applyQuickFilter("income-only")}
-                    className="h-8 text-xs text-green-600 hover:text-green-700"
+                    className="h-10 sm:h-8 text-xs sm:text-sm font-medium rounded-lg text-green-600 hover:text-green-700"
                   >
                     Income Only
                   </Button>
@@ -556,21 +576,21 @@ export default function Transactions() {
                     variant="outline"
                     size="sm"
                     onClick={() => applyQuickFilter("expenses-only")}
-                    className="h-8 text-xs text-red-600 hover:text-red-700"
+                    className="h-10 sm:h-8 text-xs sm:text-sm font-medium rounded-lg text-red-600 hover:text-red-700"
                   >
                     Expenses Only
                   </Button>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3 lg:gap-4">
                 {/* Enhanced Search Input */}
-                <div className="lg:col-span-1 relative">
+                <div className="sm:col-span-2 lg:col-span-1 relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     placeholder="Search description, account, category..."
                     onChange={(e) => handleSearchChange(e.target.value)}
-                    className="pl-10"
+                    className="pl-10 h-10 sm:h-9 text-sm font-medium rounded-lg"
                   />
                   {searchTerm && (
                     <button
@@ -588,7 +608,7 @@ export default function Transactions() {
 
                 {/* Account Filter */}
                 <Select value={selectedAccount} onValueChange={setSelectedAccount}>
-                  <SelectTrigger>
+                  <SelectTrigger className="h-10 sm:h-9 text-sm font-medium rounded-lg">
                     <SelectValue placeholder="All accounts" />
                   </SelectTrigger>
                   <SelectContent>
@@ -603,7 +623,7 @@ export default function Transactions() {
 
                 {/* Category Filter */}
                 <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                  <SelectTrigger>
+                  <SelectTrigger className="h-10 sm:h-9 text-sm font-medium rounded-lg">
                     <SelectValue placeholder="All categories" />
                   </SelectTrigger>
                   <SelectContent>
@@ -619,10 +639,10 @@ export default function Transactions() {
 
               {/* Active Filters Display */}
               {hasActiveFilters && (
-                <div className="mt-4 p-3 bg-muted/30 rounded-lg">
+                <div className="mt-4 p-3 sm:p-4 bg-muted/30 rounded-lg">
                   <div className="flex items-center gap-2 mb-2">
                     <Filter className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-medium text-muted-foreground">Active Filters:</span>
+                    <span className="text-sm sm:text-base font-medium text-muted-foreground">Active Filters:</span>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {searchTerm && (
@@ -730,49 +750,49 @@ export default function Transactions() {
               )}
 
               {/* Type and Kind Filters */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mt-4">
                 {/* Transaction Type Filter - Only for regular transactions */}
                 <div className="flex-1">
-                  <Label className="text-sm font-medium">Transaction Type</Label>
+                  <Label className="text-sm sm:text-base font-medium">Transaction Type</Label>
                   <RadioGroup
                     value={selectedType}
                     onValueChange={setSelectedType}
-                    className="flex items-center space-x-4 mt-2"
+                    className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 mt-2 space-y-2 sm:space-y-0"
                   >
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="all" id="type-all" />
-                      <Label htmlFor="type-all">All</Label>
+                      <Label htmlFor="type-all" className="text-sm sm:text-base">All</Label>
                     </div>
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="income" id="type-income" />
-                      <Label htmlFor="type-income">Income</Label>
+                      <Label htmlFor="type-income" className="text-sm sm:text-base">Income</Label>
                     </div>
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="expense" id="type-expense" />
-                      <Label htmlFor="type-expense">Expense</Label>
+                      <Label htmlFor="type-expense" className="text-sm sm:text-base">Expense</Label>
                     </div>
                   </RadioGroup>
                 </div>
 
                 {/* Show/Hide Filter */}
                 <div className="flex-1">
-                  <Label className="text-sm font-medium">Show</Label>
+                  <Label className="text-sm sm:text-base font-medium">Show</Label>
                   <RadioGroup
                     value={selectedTransactionKind}
                     onValueChange={setSelectedTransactionKind}
-                    className="flex items-center space-x-4 mt-2"
+                    className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 mt-2 space-y-2 sm:space-y-0"
                   >
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="all" id="kind-all" />
-                      <Label htmlFor="kind-all">All</Label>
+                      <Label htmlFor="kind-all" className="text-sm sm:text-base">All</Label>
                     </div>
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="transaction" id="kind-transaction" />
-                      <Label htmlFor="kind-transaction">Transactions</Label>
+                      <Label htmlFor="kind-transaction" className="text-sm sm:text-base">Transactions</Label>
                     </div>
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="transfer" id="kind-transfer" />
-                      <Label htmlFor="kind-transfer">Transfers</Label>
+                      <Label htmlFor="kind-transfer" className="text-sm sm:text-base">Transfers</Label>
                     </div>
                   </RadioGroup>
                 </div>
@@ -780,12 +800,16 @@ export default function Transactions() {
 
               {/* Advanced Filters */}
               <Collapsible open={showFilters} onOpenChange={setShowFilters} className="mt-4">
-                <CollapsibleContent>
-                  <div className="border-t border-border pt-4 mt-4 space-y-6">
+                <CollapsibleContent className="overflow-visible">
+                  <div className="border-t border-border pt-4 mt-4 space-y-4 sm:space-y-6">
+                    {/* Mobile Debug Info */}
+                    <div className="sm:hidden p-2 bg-blue-50 border border-blue-200 rounded-md">
+                      <p className="text-xs text-blue-700">Advanced filters are now visible on mobile</p>
+                    </div>
                     {/* Date Range with Quick Buttons */}
                     <div>
-                      <h5 className="text-sm font-medium mb-3">Date Range</h5>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <h5 className="text-sm sm:text-base font-medium mb-3">Date Range</h5>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                         <div className="space-y-2">
                           <label className="text-sm font-medium text-muted-foreground">From</label>
                           <Popover>
@@ -856,8 +880,8 @@ export default function Transactions() {
 
                     {/* Amount Range */}
                     <div>
-                      <h5 className="text-sm font-medium mb-3">Amount Range</h5>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <h5 className="text-sm sm:text-base font-medium mb-3">Amount Range</h5>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                         <div className="space-y-2">
                           <label className="text-sm font-medium text-muted-foreground">Minimum</label>
                           <Input
@@ -898,8 +922,8 @@ export default function Transactions() {
 
                     {/* Enhanced Sorting */}
                     <div>
-                      <h5 className="text-sm font-medium mb-3">Sort Results</h5>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <h5 className="text-sm sm:text-base font-medium mb-3">Sort Results</h5>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                         <div className="space-y-2">
                           <label className="text-sm font-medium text-muted-foreground">Sort by</label>
                           <Select value={sortBy} onValueChange={setSortBy}>
@@ -937,20 +961,20 @@ export default function Transactions() {
           </Card>
 
           {/* Transactions List */}
-          <Card className="mt-6">
+          <Card className="mt-4 sm:mt-6">
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
+                <CardTitle className="text-base sm:text-lg">
                   All Transactions ({transactionsWithRunningBalances.length})
                 </CardTitle>
                 {/* View Toggle, Sort Controls, and Archive Actions */}
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-2">
                   {/* View Toggle */}
                   <div className="flex items-center border rounded-md">
                     <Button
                       variant={transactionViewMode === 'list' ? 'default' : 'ghost'}
                       size="sm"
-                      className="rounded-r-none"
+                      className="rounded-r-none h-10 sm:h-8 text-sm font-medium w-12 sm:w-10 px-0"
                       onClick={() => setTransactionViewMode('list')}
                     >
                       <List className="h-4 w-4" />
@@ -958,7 +982,7 @@ export default function Transactions() {
                     <Button
                       variant={transactionViewMode === 'table' ? 'default' : 'ghost'}
                       size="sm"
-                      className="rounded-l-none"
+                      className="rounded-r-none h-10 sm:h-8 text-sm font-medium w-12 sm:w-10 px-0"
                       onClick={() => setTransactionViewMode('table')}
                     >
                       <Table className="h-4 w-4" />
@@ -966,47 +990,49 @@ export default function Transactions() {
                   </div>
                   
                   {/* Sort Controls */}
-                  <Select value={sortBy} onValueChange={setSortBy}>
-                    <SelectTrigger className="w-32">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="date">Date</SelectItem>
-                      <SelectItem value="amount">Amount</SelectItem>
-                      <SelectItem value="description">Description</SelectItem>
-                      <SelectItem value="category">Category</SelectItem>
-                      <SelectItem value="account">Account</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                    className="px-2"
-                  >
-                    {sortOrder === 'asc' ? '↑' : '↓'}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Select value={sortBy} onValueChange={setSortBy}>
+                      <SelectTrigger className="w-28 sm:w-32 h-10 sm:h-8 text-sm font-medium rounded-lg">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="date">Date</SelectItem>
+                        <SelectItem value="amount">Amount</SelectItem>
+                        <SelectItem value="description">Description</SelectItem>
+                        <SelectItem value="category">Category</SelectItem>
+                        <SelectItem value="account">Account</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                      className="px-2 h-10 sm:h-8 text-sm font-medium rounded-lg"
+                    >
+                      {sortOrder === 'asc' ? '↑' : '↓'}
+                    </Button>
+                  </div>
                   
                   {/* Archive Actions */}
-                  <div className="flex items-center gap-1 ml-2">
+                  <div className="flex gap-2">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => setLocation("/transactions/archived")}
-                      className="flex items-center gap-1"
+                      className="flex items-center gap-1 h-10 sm:h-8 text-sm font-medium rounded-lg"
                     >
                       <Archive className="h-3 w-3" />
-                      Archive
+                      <span className="hidden sm:inline">Archive</span>
                     </Button>
                     {transactionsWithRunningBalances.length > 0 && (
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => setArchiveAllTransactions(true)}
-                        className="flex items-center gap-1 text-orange-600 hover:text-orange-700"
+                        className="flex items-center gap-1 text-orange-600 hover:text-orange-700 h-10 sm:h-8 text-sm font-medium rounded-lg"
                       >
                         <Archive className="h-3 w-3" />
-                        All ({transactionsWithRunningBalances.length})
+                        <span className="hidden sm:inline">All ({transactionsWithRunningBalances.length})</span>
                       </Button>
                     )}
                   </div>
@@ -1015,41 +1041,50 @@ export default function Transactions() {
             </CardHeader>
             <CardContent>
               {isLoading ? (
-                <div className="space-y-4">
+                <div className="space-y-2 sm:space-y-4">
                   {[...Array(10)].map((_, i) => (
-                    <div key={i} className="animate-pulse flex items-center justify-between p-4 border-b border-border">
-                      <div className="flex items-center space-x-4">
-                        <div className="w-10 h-10 bg-muted rounded-lg" />
-                        <div className="space-y-2">
-                          <div className="h-4 bg-muted rounded w-32" />
-                          <div className="h-3 bg-muted rounded w-24" />
+                    <div key={i} className="animate-pulse p-2 sm:p-4 border-b border-border">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                        <div className="flex items-start gap-2 sm:gap-4 flex-1">
+                          <div className="w-10 h-10 sm:w-10 sm:h-10 bg-muted rounded-lg" />
+                          <div className="flex-1 space-y-1.5 sm:space-y-2">
+                            <div className="h-4 sm:h-4 bg-muted rounded w-32 sm:w-24" />
+                            <div className="h-3 sm:h-3 bg-muted rounded w-24 sm:w-20" />
+                            <div className="h-3 bg-muted rounded w-20 sm:hidden" />
+                          </div>
                         </div>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="h-4 bg-muted rounded w-20" />
-                        <div className="h-3 bg-muted rounded w-16" />
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
+                          <div className="text-right sm:text-left">
+                            <div className="h-5 sm:h-4 bg-muted rounded w-20 sm:w-16" />
+                            <div className="h-3 bg-muted rounded w-16 hidden sm:block" />
+                          </div>
+                          <div className="flex gap-1 sm:gap-1">
+                            <div className="w-8 h-8 sm:w-8 sm:h-8 bg-muted rounded-lg" />
+                            <div className="w-8 h-8 sm:w-8 sm:h-8 bg-muted rounded-lg" />
+                          </div>
+                        </div>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : transactionsWithRunningBalances.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="w-16 h-16 mx-auto bg-muted rounded-full flex items-center justify-center mb-4">
-                    <i className="fas fa-receipt text-muted-foreground text-xl" />
+                <div className="text-center py-8 sm:py-12">
+                  <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto bg-muted rounded-full flex items-center justify-center mb-3 sm:mb-4">
+                    <i className="fas fa-receipt text-muted-foreground text-lg sm:text-xl" />
                   </div>
-                  <p className="text-lg font-medium text-foreground mb-2">
+                  <p className="text-base sm:text-lg font-medium text-foreground mb-2">
                     {searchTerm || selectedAccount !== "all" || selectedCategory !== "all" || selectedType !== "all" || selectedTransactionKind !== "all"
                       ? "No transactions match your filters"
                       : "No transactions yet"}
                   </p>
-                  <p className="text-muted-foreground mb-4">
+                  <p className="text-sm sm:text-base text-muted-foreground mb-4 px-4">
                     {searchTerm || selectedAccount !== "all" || selectedCategory !== "all" || selectedType !== "all" || selectedTransactionKind !== "all"
                       ? "Try adjusting your search or filter criteria"
                       : "Add your first transaction to get started"}
                   </p>
                   <Button
                     onClick={() => setShowAddTransaction(true)}
-                    className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground h-12 sm:h-9 text-sm font-medium rounded-lg"
                   >
                     <Plus className="mr-2 h-4 w-4" />
                     Add Transaction
@@ -1058,24 +1093,29 @@ export default function Transactions() {
               ) : transactionViewMode === 'list' ? (
                 <div className="space-y-0 divide-y divide-border">
                   {transactionsWithRunningBalances.map((item) => (
-                    <div key={item._id} className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors">
-                      <div className="flex items-center flex-1">
-                        <div className="flex-shrink-0">
-                          <div
-                            className="w-10 h-10 rounded-lg flex items-center justify-center"
-                            style={{ backgroundColor: item.category.color, color: 'white' }}
-                          >
-                            {item.type === 'transfer' ? (
-                              <ArrowRightLeft className="h-5 w-5" />
-                            ) : (
-                              <i className={`${item.category.icon} text-sm`} />
-                            )}
+                    <div key={item._id} className="p-2 sm:p-4 hover:bg-muted/50 transition-colors">
+                      {/* Mobile-optimized transaction item - Compact spacing */}
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                        {/* Icon and main content */}
+                        <div className="flex items-start gap-2 sm:gap-4 flex-1 min-w-0">
+                          <div className="flex-shrink-0">
+                            <div
+                              className="w-10 h-10 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center"
+                              style={{ backgroundColor: item.category.color, color: 'white' }}
+                            >
+                              {item.type === 'transfer' ? (
+                                <ArrowRightLeft className="h-5 w-5 sm:h-5 sm:w-5" />
+                              ) : (
+                                <i className={`${item.category.icon} text-sm sm:text-sm`} />
+                              )}
+                            </div>
                           </div>
-                        </div>
-                        <div className="ml-4 flex-1">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-sm font-medium text-foreground">
+                          
+                          {/* Transaction details */}
+                          <div className="flex-1 min-w-0">
+                            {/* Description - Mobile optimized with truncation */}
+                            <div className="mb-0.5 sm:mb-0.5">
+                              <p className="text-sm sm:text-sm font-medium text-foreground line-clamp-2 sm:line-clamp-none">
                                 {(() => {
                                   const result = item.type === 'transfer' 
                                     ? highlightTransactionPrefix(`Transfer: ${item.description}`)
@@ -1092,72 +1132,103 @@ export default function Transactions() {
                                   );
                                 })()}
                               </p>
-                              <p className="text-sm text-muted-foreground">
-                                {item.type === 'transfer' 
-                                  ? `${item.fromAccount!.name} → ${item.toAccount!.name}`
-                                  : `${item.category.name} • ${item.account.name}`
-                                }
-                              </p>
+                              
+                              {/* Mobile View Details Button - Only show if description is long */}
+                              {item.description.length > 50 && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setShowTransactionDetails(item)}
+                                  className="mt-1 h-5 px-1.5 text-xs text-muted-foreground hover:text-foreground sm:hidden"
+                                >
+                                  View full description
+                                </Button>
+                              )}
                             </div>
-                            <div className="text-right">
-                              <p className={`text-sm font-medium ${
-                                item.type === 'transfer' 
-                                  ? 'text-foreground'
-                                  : getTransactionTypeColor(item.type)
-                              }`}>
-                                {item.type === 'transfer' 
-                                  ? formatCurrency(item.amount)
-                                  : `${item.type === 'income' ? '+' : '-'}${formatCurrency(item.amount)}`
-                                }
-                              </p>
-                              <p className="text-sm text-muted-foreground">
-                                {formatDateFull(item.date)}
-                              </p>
-                            </div>
+                            
+                            {/* Category and account info */}
+                            <p className="text-xs sm:text-xs text-muted-foreground mb-1 sm:mb-1">
+                              {item.type === 'transfer' 
+                                ? `${item.fromAccount!.name} → ${item.toAccount!.name}`
+                                : `${item.category.name} • ${item.account.name}`
+                              }
+                            </p>
+                            
+                            {/* Date - mobile only */}
+                            <p className="text-xs text-muted-foreground sm:hidden">
+                              {formatDateFull(item.date)}
+                            </p>
                           </div>
                         </div>
-                        <div className="ml-4 flex space-x-2">
-                          {item.type !== 'transfer' && (
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => {
-                                setSelectedTransaction(item);
-                                setShowEditTransaction(true);
-                              }}
-                            >
-                              <Edit2 className="h-4 w-4" />
-                            </Button>
-                          )}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setArchiveTransaction(
+                        
+                        {/* Amount and actions - mobile optimized */}
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
+                          {/* Amount */}
+                          <div className="text-right sm:text-left">
+                            <p className={`text-base sm:text-sm font-semibold ${
                               item.type === 'transfer' 
-                                ? item.fromTransactionId! 
-                                : item._id
+                                ? 'text-foreground'
+                                : getTransactionTypeColor(item.type)
+                            }`}>
+                              {item.type === 'transfer' 
+                                ? formatCurrency(item.amount)
+                                : `${item.type === 'income' ? '+' : '-'}${formatCurrency(item.amount)}`
+                              }
+                            </p>
+                            {/* Date - desktop only */}
+                            <p className="text-xs text-muted-foreground hidden sm:block">
+                              {formatDateFull(item.date)}
+                            </p>
+                          </div>
+                          
+                          {/* Action buttons */}
+                          <div className="flex gap-1 sm:gap-1">
+                            {item.type !== 'transfer' && (
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedTransaction(item);
+                                  setShowEditTransaction(true);
+                                }}
+                                className="h-8 w-8 sm:h-8 sm:w-8 p-0 rounded-lg"
+                              >
+                                <Edit2 className="h-4 w-4" />
+                              </Button>
                             )}
-                            className="text-destructive hover:text-destructive"
-                          >
-                            <Archive className="h-4 w-4" />
-                          </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setArchiveTransaction(
+                                item.type === 'transfer' 
+                                  ? item.fromTransactionId! 
+                                  : item._id
+                              )}
+                              className="h-8 w-8 sm:h-8 sm:w-8 p-0 rounded-lg text-destructive hover:text-destructive"
+                            >
+                              <Archive className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
+                <div className="overflow-x-auto -mx-3 sm:mx-0">
+                  <div className="sm:hidden mb-2 text-xs text-muted-foreground text-center">
+                    ← Swipe left/right to see all columns →
+                  </div>
+                  <table className="w-full min-w-[800px] sm:min-w-0">
                     <thead>
                       <tr className="border-b border-border">
-                        <th className="text-left p-3 font-medium text-muted-foreground w-12">#</th>
-                        <th className="text-left p-3 font-medium text-muted-foreground">Date</th>
-                        <th className="text-left p-3 font-medium text-muted-foreground">Transaction Details</th>
-                        <th className="text-right p-3 font-medium text-muted-foreground">Money In</th>
-                        <th className="text-right p-3 font-medium text-muted-foreground">Money Out</th>
-                        <th className="text-right p-3 font-medium text-muted-foreground">Balance</th>
-                        <th className="text-center p-3 font-medium text-muted-foreground">Actions</th>
+                        <th className="text-left p-2 sm:p-3 font-medium text-muted-foreground w-8 sm:w-12">#</th>
+                        <th className="text-left p-2 sm:p-3 font-medium text-muted-foreground w-20 sm:w-auto">Date</th>
+                        <th className="text-left p-2 sm:p-3 font-medium text-muted-foreground min-w-[200px] sm:min-w-0">Transaction Details</th>
+                        <th className="text-right p-2 sm:p-3 font-medium text-muted-foreground w-20 sm:w-auto">Money In</th>
+                        <th className="text-right p-2 sm:p-3 font-medium text-muted-foreground w-20 sm:w-auto">Money Out</th>
+                        <th className="text-right p-2 sm:p-3 font-medium text-muted-foreground w-20 sm:w-auto">Balance</th>
+                        <th className="text-center p-2 sm:p-3 font-medium text-muted-foreground w-16 sm:w-auto">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1343,6 +1414,108 @@ export default function Transactions() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Transaction Details Modal - Mobile Optimized */}
+      <Dialog open={showTransactionDetails !== null} onOpenChange={() => setShowTransactionDetails(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg sm:text-xl">Transaction Details</DialogTitle>
+          </DialogHeader>
+          {showTransactionDetails && (
+            <div className="space-y-4">
+              {/* Icon and Type */}
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-12 h-12 rounded-lg flex items-center justify-center"
+                  style={{ backgroundColor: showTransactionDetails.category.color, color: 'white' }}
+                >
+                  {showTransactionDetails.type === 'transfer' ? (
+                    <ArrowRightLeft className="h-6 w-6" />
+                  ) : (
+                    <i className={`${showTransactionDetails.category.icon} text-xl`} />
+                  )}
+                </div>
+                <div>
+                  <p className="font-semibold text-foreground">
+                    {showTransactionDetails.type === 'transfer' ? 'Transfer' : 
+                     showTransactionDetails.type === 'income' ? 'Income' : 'Expense'}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {showTransactionDetails.category.name}
+                  </p>
+                </div>
+              </div>
+
+              {/* Description */}
+              <div>
+                <p className="text-sm font-medium text-muted-foreground mb-1">Description</p>
+                <p className="text-base text-foreground break-words">
+                  {showTransactionDetails.description}
+                </p>
+              </div>
+
+              {/* Amount */}
+              <div>
+                <p className="text-sm font-medium text-muted-foreground mb-1">Amount</p>
+                <p className={`text-2xl font-bold ${
+                  showTransactionDetails.type === 'transfer' 
+                    ? 'text-foreground'
+                    : getTransactionTypeColor(showTransactionDetails.type)
+                }`}>
+                  {showTransactionDetails.type === 'transfer' 
+                    ? formatCurrency(showTransactionDetails.amount)
+                    : `${showTransactionDetails.type === 'income' ? '+' : '-'}${formatCurrency(showTransactionDetails.amount)}`
+                  }
+                </p>
+              </div>
+
+              {/* Account Info */}
+              <div>
+                <p className="text-sm font-medium text-muted-foreground mb-1">Account</p>
+                <p className="text-base text-foreground">
+                  {showTransactionDetails.type === 'transfer' && showTransactionDetails.fromAccount && showTransactionDetails.toAccount
+                    ? `${showTransactionDetails.fromAccount.name} → ${showTransactionDetails.toAccount.name}`
+                    : showTransactionDetails.account.name
+                  }
+                </p>
+              </div>
+
+              {/* Date */}
+              <div>
+                <p className="text-sm font-medium text-muted-foreground mb-1">Date</p>
+                <p className="text-base text-foreground">
+                  {formatDateFull(showTransactionDetails.date)}
+                </p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-2 pt-2">
+                {showTransactionDetails.type !== 'transfer' && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setSelectedTransaction(showTransactionDetails);
+                      setShowEditTransaction(true);
+                      setShowTransactionDetails(null);
+                    }}
+                    className="flex-1"
+                  >
+                    <Edit2 className="h-4 w-4 mr-2" />
+                    Edit
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  onClick={() => setShowTransactionDetails(null)}
+                  className="flex-1"
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

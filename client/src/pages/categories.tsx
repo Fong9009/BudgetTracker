@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { AddCategoryModal } from "@/components/modals/add-category-modal";
 import { EditCategoryModal } from "@/components/modals/edit-category-modal";
-import { SortableGrid } from "@/components/ui/sortable-grid";
+
 import { apiRequest } from "@/lib/queryClient";
 import { formatCurrency, getTransactionTypeColor } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -30,7 +30,7 @@ export default function Categories() {
   const [showEditCategory, setShowEditCategory] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [archiveCategory, setArchiveCategory] = useState<string | null>(null);
-  const [categoryOrder, setCategoryOrder] = useState<string[]>([]);
+
   const [viewingCategoryTransactions, setViewingCategoryTransactions] = useState<Category | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -133,70 +133,34 @@ export default function Categories() {
     setViewingCategoryTransactions(null);
   };
 
-  const handleReorder = (newOrder: (Category & { transactionCount: number })[]) => {
-    setCategoryOrder(newOrder.map(category => category._id));
-    localStorage.setItem('categoryOrder', JSON.stringify(newOrder.map(category => category._id)));
-  };
 
-  // Sort categories based on saved order or default order
-  const sortedCategories = React.useMemo(() => {
-    if (categoryOrder.length > 0) {
-      const orderMap = new Map(categoryOrder.map((id, index) => [id, index]));
-      return [...filteredCategories].sort((a, b) => {
-        const aIndex = orderMap.get(a._id) ?? Number.MAX_SAFE_INTEGER;
-        const bIndex = orderMap.get(b._id) ?? Number.MAX_SAFE_INTEGER;
-        return aIndex - bIndex;
-      });
-    }
-    return filteredCategories;
-  }, [filteredCategories, categoryOrder]);
-
-  // Load saved order on mount
-  React.useEffect(() => {
-    const savedOrder = localStorage.getItem('categoryOrder');
-    if (savedOrder) {
-      try {
-        const parsedOrder = JSON.parse(savedOrder);
-        // Validate that the saved order contains valid IDs
-        if (Array.isArray(parsedOrder) && parsedOrder.every(id => typeof id === 'string')) {
-          setCategoryOrder(parsedOrder);
-        } else {
-          console.warn('Invalid category order found in localStorage, clearing it');
-          localStorage.removeItem('categoryOrder');
-        }
-      } catch (error) {
-        console.error('Failed to parse saved category order:', error);
-        localStorage.removeItem('categoryOrder');
-      }
-    }
-  }, []);
 
   return (
     <div className="flex-1 relative overflow-y-auto focus:outline-none">
       <div className="py-6">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8">
           {/* Page header */}
-          <div className="md:flex md:items-center md:justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex-1 min-w-0">
-              <h2 className="text-2xl font-semibold text-foreground sm:truncate">
+              <h2 className="text-xl sm:text-2xl font-semibold text-foreground sm:truncate">
                 Categories
               </h2>
-              <p className="mt-1 text-sm text-muted-foreground">
+              <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
                 Organize your transactions with custom categories
               </p>
             </div>
-            <div className="mt-4 flex md:mt-0 md:ml-4 space-x-2">
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-2">
               <Button
                 variant="outline"
                 onClick={() => setLocation("/categories/archived")}
-                className="flex items-center gap-2"
+                className="flex items-center justify-center gap-2 h-12 sm:h-9 px-4 text-sm font-medium rounded-lg"
               >
                 <Archive className="h-4 w-4" />
                 View Archive
               </Button>
               <Button
                 onClick={() => setShowAddCategory(true)}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground h-12 sm:h-9 px-4 text-sm font-medium rounded-lg"
               >
                 <Plus className="mr-2 h-4 w-4" />
                 Add Category
@@ -207,12 +171,12 @@ export default function Categories() {
           {/* Categories Grid */}
           <div className="mt-8">
             {isLoading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                 {[...Array(6)].map((_, i) => (
                   <Card key={i} className="animate-pulse">
-                    <CardContent className="p-4">
+                    <CardContent className="p-3 sm:p-4">
                       <div className="flex items-center">
-                        <div className="w-10 h-10 bg-muted rounded-lg mr-4" />
+                        <div className="w-10 h-10 bg-muted rounded-lg mr-3 sm:mr-4" />
                         <div className="space-y-2">
                           <div className="h-4 bg-muted rounded w-24" />
                           <div className="h-3 bg-muted rounded w-16" />
@@ -223,56 +187,51 @@ export default function Categories() {
                 ))}
               </div>
             ) : filteredCategories.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="w-16 h-16 mx-auto bg-muted rounded-full flex items-center justify-center mb-4">
-                  <i className="fas fa-folder text-muted-foreground text-xl" />
+              <div className="text-center py-8 sm:py-12">
+                <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto bg-muted rounded-full flex items-center justify-center mb-3 sm:mb-4">
+                  <i className="fas fa-folder text-muted-foreground text-lg sm:text-xl" />
                 </div>
-                <p className="text-lg font-medium text-foreground mb-2">
+                <p className="text-base sm:text-lg font-medium text-foreground mb-2">
                   No categories yet
                 </p>
-                <p className="text-muted-foreground mb-4">
+                <p className="text-xs sm:text-sm text-muted-foreground mb-4 px-4">
                   Create your first category to organize your transactions
                 </p>
                 <Button
                   onClick={() => setShowAddCategory(true)}
-                  className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground h-12 sm:h-9 px-6 text-sm font-medium rounded-lg"
                 >
                   <Plus className="mr-2 h-4 w-4" />
                   Add Category
                 </Button>
               </div>
             ) : (
-              <SortableGrid
-                items={sortedCategories}
-                onReorder={handleReorder}
-                className="sm:grid-cols-2 lg:grid-cols-3"
-                getId={(category) => category._id}
-              >
-                {(category) => (
-                  <Card className="group relative">
-                    <CardContent className="p-4 relative">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                {filteredCategories.map((category) => (
+                  <Card key={category._id} className="group relative">
+                    <CardContent className="p-3 sm:p-4 relative">
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center">
                           <div
-                            className="w-10 h-10 rounded-lg flex items-center justify-center mr-4"
+                            className="w-10 h-10 rounded-lg flex items-center justify-center mr-3 sm:mr-4"
                             style={{ backgroundColor: category.color }}
                           >
-                            <i className={`${category.icon} text-white text-lg`} />
+                            <i className={`${category.icon} text-white text-base sm:text-lg`} />
                           </div>
                           <div>
-                            <p className="font-semibold text-foreground">{category.name}</p>
-                            <p className="text-sm text-muted-foreground">
+                            <p className="text-sm sm:text-base font-semibold text-foreground">{category.name}</p>
+                            <p className="text-xs sm:text-sm text-muted-foreground">
                               {category.transactionCount} Transaction{category.transactionCount !== 1 ? 's' : ''}
                             </p>
                           </div>
                         </div>
                       </div>
-                      <div className="pt-3 border-t border-border space-y-3">
+                      <div className="pt-3 border-t border-border space-y-2 sm:space-y-3">
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => handleViewTransactions(category)}
-                          className="w-full"
+                          className="w-full h-10 sm:h-9 text-sm font-medium rounded-lg"
                         >
                           <Receipt className="h-4 w-4 mr-2" />
                           View Transactions
@@ -283,7 +242,7 @@ export default function Categories() {
                             variant="ghost" 
                             size="sm" 
                             onClick={() => handleEdit(category)}
-                            className="flex-1"
+                            className="flex-1 h-10 sm:h-9 text-sm font-medium rounded-lg"
                           >
                             <Edit2 className="h-4 w-4 mr-2" />
                             Edit
@@ -291,7 +250,7 @@ export default function Categories() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="flex-1 text-red-500 hover:text-red-600"
+                            className="flex-1 h-10 sm:h-9 text-sm font-medium rounded-lg text-red-500 hover:text-red-600"
                             onClick={() => setArchiveCategory(category._id)}
                           >
                             <Archive className="h-4 w-4 mr-2" />
@@ -301,8 +260,8 @@ export default function Categories() {
                       </div>
                     </CardContent>
                   </Card>
-                )}
-              </SortableGrid>
+                ))}
+              </div>
             )}
           </div>
 
@@ -314,28 +273,28 @@ export default function Categories() {
                   <CardTitle className="text-lg">Category Overview</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="text-center">
-                      <p className="text-2xl font-bold text-foreground">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
+                    <div className="text-center space-y-1">
+                      <p className="text-xl sm:text-2xl font-bold text-foreground">
                         {filteredCategories.length}
                       </p>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-xs sm:text-sm text-muted-foreground">
                         Total Categories
                       </p>
                     </div>
-                    <div className="text-center">
-                      <p className="text-2xl font-bold text-foreground">
+                    <div className="text-center space-y-1">
+                      <p className="text-xl sm:text-2xl font-bold text-foreground">
                         {filteredCategories.filter(category => category.transactionCount > 0).length}
                       </p>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-xs sm:text-sm text-muted-foreground">
                         Active This Month
                       </p>
                     </div>
-                    <div className="text-center">
-                      <p className="text-2xl font-bold text-foreground">
+                    <div className="text-center space-y-1">
+                      <p className="text-xl sm:text-2xl font-bold text-foreground">
                         {filteredCategories.reduce((sum, category) => sum + category.transactionCount, 0)}
                       </p>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-xs sm:text-sm text-muted-foreground">
                         Total Transactions
                       </p>
                     </div>

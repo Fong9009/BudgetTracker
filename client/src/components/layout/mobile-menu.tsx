@@ -82,25 +82,28 @@ export function MobileMenu({ className }: MobileMenuProps) {
       <Button
         variant="ghost"
         size="icon"
-        className={cn("lg:hidden [&_svg]:!size-5 flex items-center justify-center h-10 w-10 hover:bg-primary hover:text-primary-foreground p-2", className)}
+        className={cn(
+          "lg:hidden flex items-center justify-center h-12 w-12 hover:bg-primary hover:text-primary-foreground p-3 rounded-xl transition-all duration-200 active:scale-95 touch-manipulation",
+          className
+        )}
         onClick={toggleMenu}
       >
-        <Menu className="h-5 w-5" />
+        <Menu className="h-6 w-6" />
       </Button>
 
       {/* Mobile sidebar overlay */}
       {isOpen && (
-        <div className="lg:hidden fixed inset-0 flex z-40">
+        <div className="lg:hidden fixed inset-0 flex z-50">
           <div
-            className="fixed inset-0 bg-background/80 backdrop-blur-sm"
+            className="fixed inset-0 bg-background/90 backdrop-blur-md"
             onClick={closeMenu}
           />
-          <div className="relative flex-1 flex flex-col max-w-xs w-full bg-card border-r border-border">
+          <div className="relative flex-1 flex flex-col max-w-[85vw] w-full bg-card border-r border-border shadow-2xl">
             <div className="absolute top-0 right-0 -mr-12 pt-2">
               <Button
                 variant="ghost"
                 size="sm"
-                className="ml-1 h-10 w-10 text-muted-foreground"
+                className="ml-1 h-12 w-12 text-muted-foreground rounded-full"
                 onClick={closeMenu}
               >
                 <X className="h-6 w-6" />
@@ -119,7 +122,7 @@ export function MobileMenu({ className }: MobileMenuProps) {
                   </h1>
                 </div>
               </div>
-              <nav className="mt-5 px-2 space-y-1">
+              <nav className="mt-6 px-3 space-y-2">
                 {navigation.map((item) => {
                   const isActive = location === item.href;
                   return (
@@ -127,21 +130,22 @@ export function MobileMenu({ className }: MobileMenuProps) {
                       key={item.name} 
                       href={item.href}
                       className={cn(
-                        "group flex items-center px-2 py-2 text-base font-medium rounded-md transition-colors",
+                        "group flex items-center px-4 py-4 text-base font-medium rounded-xl transition-all duration-200",
+                        "min-h-[56px] touch-manipulation",
                         isActive
-                          ? "bg-primary/10 text-primary"
-                          : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                          ? "bg-primary/15 text-primary shadow-lg shadow-primary/20"
+                          : "text-muted-foreground hover:bg-accent hover:text-accent-foreground active:scale-95"
                       )}
                       onClick={closeMenu}
                     >
                       <i
                         className={cn(
                           item.icon,
-                          "mr-4 text-sm",
+                          "mr-4 text-lg w-6 text-center",
                           isActive ? "text-primary" : "text-muted-foreground"
                         )}
                       />
-                      {item.name}
+                      <span className="font-semibold">{item.name}</span>
                     </Link>
                   );
                 })}
@@ -152,9 +156,9 @@ export function MobileMenu({ className }: MobileMenuProps) {
                   size="sm"
                   onClick={handleHardRefresh}
                   disabled={isRefreshing}
-                  className="w-full justify-start mt-4"
+                  className="w-full justify-start mt-6 px-4 py-4 h-14 text-base font-medium rounded-xl border-2"
                 >
-                  <RefreshCw className={`h-4 w-4 mr-3 ${isRefreshing ? 'animate-spin' : ''}`} />
+                  <RefreshCw className={`h-5 w-5 mr-3 ${isRefreshing ? 'animate-spin' : ''}`} />
                   {isRefreshing ? 'Refreshing...' : 'Hard Refresh'}
                 </Button>
 
@@ -165,9 +169,9 @@ export function MobileMenu({ className }: MobileMenuProps) {
                     size="sm"
                     onClick={handleInstallApp}
                     disabled={isInstalling}
-                    className="w-full justify-start mt-2"
+                    className="w-full justify-start mt-3 px-4 py-4 h-14 text-base font-medium rounded-xl border-2"
                   >
-                    <Smartphone className="h-4 w-4 mr-3" />
+                    <Smartphone className="h-5 w-5 mr-3" />
                     {isInstalling ? 'Installing...' : 'Install App'}
                   </Button>
                 )}
