@@ -31,20 +31,26 @@ import type { Account, Category } from "@shared/schema";
 // Import getCSRFToken function
 async function getCSRFToken(): Promise<string | null> {
   try {
-    const response = await fetch("/api/csrf-token", {
+    // First, make a request to get the CSRF cookie set
+    await fetch("/api/csrf-token", {
       method: "GET",
       credentials: "include",
     });
     
-    if (response.ok) {
-      const data = await response.json();
-      return data.csrfToken;
+    // Read the CSRF token from cookies
+    const cookies = document.cookie.split(';');
+    const csrfCookie = cookies.find(cookie => cookie.trim().startsWith('x-csrf-token='));
+    
+    if (csrfCookie) {
+      const token = csrfCookie.split('=')[1];
+      return token;
     }
+    
+    return null;
   } catch (error) {
     console.warn("Failed to get CSRF token:", error);
+    return null;
   }
-  
-  return null;
 }
 
 interface ParsedTransaction {

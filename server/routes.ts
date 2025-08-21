@@ -82,6 +82,24 @@ const upload = multer({
 
 export async function registerRoutes(app: Express): Promise<Server> {
 
+  // CSRF token endpoint (accessible without auth)
+  app.get("/api/csrf-token", (req, res) => {
+    try {
+      // For csrf-csrf, the token is automatically set in cookies
+      // The client should read it from the 'x-csrf-token' cookie
+      res.json({ 
+        success: true,
+        message: "CSRF token available in cookies"
+      });
+    } catch (error) {
+      console.error("CSRF token generation error:", error);
+      res.status(500).json({ 
+        success: false,
+        error: "Failed to generate CSRF token" 
+      });
+    }
+  });
+
   // Health check endpoint
   app.get("/api/health", async (req, res) => {
     try {

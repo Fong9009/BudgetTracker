@@ -110,24 +110,31 @@ export async function getValidToken(): Promise<string | null> {
   }
 }
 
-// Function to get CSRF token
+// Function to get CSRF token from cookies
 async function getCSRFToken(): Promise<string | null> {
   try {
-    const response = await fetch("/api/csrf-token", {
+    // First, make a request to get the CSRF cookie set
+    await fetch("/api/csrf-token", {
       method: "GET",
       credentials: "include",
     });
     
-    if (response.ok) {
-      const data = await response.json();
-      console.log('[CSRF] Fetched token:', data.csrfToken);
-      return data.csrfToken;
+    // Read the CSRF token from cookies
+    const cookies = document.cookie.split(';');
+    const csrfCookie = cookies.find(cookie => cookie.trim().startsWith('x-csrf-token='));
+    
+    if (csrfCookie) {
+      const token = csrfCookie.split('=')[1];
+      console.log('[CSRF] Found token in cookies:', token);
+      return token;
     }
+    
+    console.warn('[CSRF] No CSRF token found in cookies');
+    return null;
   } catch (error) {
     console.warn("Failed to get CSRF token:", error);
+    return null;
   }
-  
-  return null;
 }
 
 // After login or token refresh, always fetch a new CSRF token
@@ -159,12 +166,13 @@ export async function apiRequest(
   const token = await getValidToken();
   
   // CSRF tokens temporarily disabled
+  // TODO: Re-enable CSRF token handling once the server-side is working
   const csrfToken = null;
   
   const headers = {
     "Content-Type": "application/json",
     ...(token && { Authorization: `Bearer ${token}` }),
-          // CSRF token header temporarily removed
+    // ...(csrfToken && { "x-csrf-token": csrfToken }),
     ...options.headers,
   } as Record<string, string>;
   
